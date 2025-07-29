@@ -155,6 +155,7 @@ def compute_psd_1d(snapshots, dx=1.0, dy=1.0, DNS=False, time_avg=True):
     
     return psd_mean, k_mid
 
+
 def multiply_along_axis(A, B, axis):
     return np.swapaxes(np.swapaxes(A, axis, -1) * B, -1, axis)
 

@@ -3,157 +3,69 @@ import numpy as np
 import utilities3 as utilities
 import cmocean
 import processdata3 as processdata
-
-def plot_svd(u_total, v_total, nx=256, ny=256, nt=12500, rank=100, name="surf"):
-
-    # Set matplotlib to use LaTeX for rendering text
-    #plt.rcParams.update(plt.rcParamsDefault)
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "sans-serif",
-        "font.sans-serif": "Helvetica",
-    })
-
-    # Decide which dataset to use
-    if name== "surf":
-        spatial_modes = u_total[:,:rank].reshape(nx,ny,rank)
-        temporal_modes = v_total[:rank,:]
-    else:
-        spatial_modes = u_total[:, rank:2*rank].reshape(nx, ny, rank)
-        temporal_modes = v_total[rank:2*rank, :]
-
-    # Parameters for the figure
-    n_time_points = nt
-    time = np.linspace(0, nt, n_time_points)
-    nrows = 4
-    ncolumns = 4
-
-    # Indices of the modes to display
-    selected_indices = [0, 1, 2, 10, 25, 50, 100, 250]#rank - 1]
-
-    # Create the figure, scaled for full-width on an A4 page
-    fig, axs = plt.subplots(nrows=nrows, ncols=ncolumns, figsize=(7, 6),  # 6 columns to accommodate 5 plots and dots column
-                            gridspec_kw={'height_ratios': [1, 1, 0.35, 0.35]})
-
-    # Axis limits for time dynamic plots
-    xmin = 0
-    xmax = nt
-    ymin = np.min(temporal_modes[selected_indices])
-    ymax = np.max(temporal_modes[selected_indices])
-
-    # Plot spatial data in the first two rows and time signals in the third and fourth row
-    for i, idx in enumerate(selected_indices):
-        if i < ncolumns:
-            row = 0
-            column = i
-        else:
-            row = 1
-            column = i-ncolumns
-
-        # Plot each spatial mode subplot
-        axs[row, column].imshow(spatial_modes[:,:,idx], cmap='RdBu_r', interpolation='bilinear')
-        axs[row, column].set_aspect('equal')  # Ensure square aspect ratio
-        axs[row, column].axis('off')  # No axis or ticks
-
-        axs[row+2, column].plot(temporal_modes[idx,:], color='black', linewidth=0.75)
-        axs[row+2, column].tick_params(axis='x', which='both', direction='out', length=3)
-        axs[row+2, column].set_xlim([xmin, xmax])
-        axs[row+2, column].set_ylim([ymin, ymax])
-        if column == 0:
-            axs[row+2, column].tick_params(axis='y', which='both', direction='out', length=3)
-            axs[row+2, column].locator_params(axis='y', nbins=4)  # Y-axis ticks on the left
-        else:
-            axs[row+2, column].yaxis.set_visible(False)  # Hide y-axis for other plots
-        if row == 1:
-            axs[row + 2, column].tick_params(axis='x', which='both', direction='out', length=3)
-            axs[row + 2, column].locator_params(axis='x', nbins=4)  # Y-axis ticks on the left
-        else:
-            axs[row + 2, column].xaxis.set_visible(False)  # Hide y-axis for other plots
-
-    # Adjust layout to make it compact
-    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.2, hspace=0.1, wspace=0.1)
-
-    plt.savefig("svd_"+name+".eps", format='eps', bbox_inches='tight', pad_inches=0.1)
-    plt.show()
+from matplotlib.gridspec import GridSpec
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 
-
-def plot_psd(psd_multi, k_bins, labels=None):
-    """
-    Plots multiple PSD results along with a k^-5/3 slope for comparison.
-
-    Parameters:
-    - psd_results: List of 1D arrays, each containing a PSD as a function of wavenumber.
-    - k_bins_list: List of 1D arrays, each containing the wavenumber bins corresponding to a PSD.
-    - labels: List of strings, each representing a label for the corresponding PSD (optional).
-    """
-    import ghibli as gh
-
-    fig = plt.figure(figsize=(8, 6))
-    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
-    # Plot each PSD
-    ax2 = fig.add_axes([0, 0, 1, 1])
-    for i in range(psd_multi.shape[0]):
-        #label = labels[i] if labels else f"PSD {i + 1}"
-        label = f"r = {labels[i]}" if labels else f"PSD {i + 1}"
-        plt.loglog(k_bins, psd_multi[i,:], label=label)
-
-    ax2.set_ylim(1e-8, 3)
-    ax2.set_xlabel("Dimensionless wave number $kL$")
-    ax2.set_ylabel("Normalized Power Spectral Density")
-    ax2.legend()
-    ax2.grid(True, which="both", linestyle="--", linewidth=0.3)
-
-    # Add k^-5/3 slope
-    k_slope = k_bins[(k_bins > 0) & (k_bins < np.max(k_bins))]
-    slope = k_slope ** (-5 / 3)
-    slope *= 2*psd_multi[0, 0] / slope[0]  # Use the second value to avoid zero-index issues
-    ax2.loglog(k_slope, slope, 'k--', label='$k^{-5/3}$')
-    '''for i, (psd, k_bins) in enumerate(zip(psd_results, k_bins_list)):
-        label = labels[i] if labels else f"PSD {i + 1}"
-        plt.loglog(k_bins, psd, label=label)
-
-    # Add k^-5/3 slope
-    if k_bins_list:
-        k_ref = k_bins_list[0]  # Use the first PSD's wavenumbers for reference
-        psd_ref = psd_results[0]*2
-        # Select range for the slope
-        k_slope = k_ref[(k_ref > 0) & (k_ref < np.max(k_ref))]
-        slope = k_slope ** (-5 / 3)
-        # Normalize to make the slope tangent to the data
-        slope *= psd_ref[0] / slope[0]
-        plt.loglog(k_slope, slope, 'k--', label='$k^{-5/3}$ slope')
-    '''
-    # Plot formatting
-    plt.xlabel('Wavenumber $k$')
-    plt.ylabel('Power Spectral Density (PSD)')
-    plt.title('Turbulent Spectrum')
-    plt.ylim([1e-8,2])
-    plt.legend()
-    plt.grid(True, which="both", linestyle='--', linewidth=0.5)
-    plt.show()
-    #plt.savefig("spectra_test.eps", format='eps', bbox_inches='tight', pad_inches=0.1)
-
-
-
-def plot_sensors(sensor_locations_ne, nx, ny):
-    # Plot sensor locations
-
-    mask = np.zeros(nx*ny)
-    mask[sensor_locations_ne[0]]=1
-    mask[sensor_locations_ne[1]]=1
-    mask[sensor_locations_ne[2]]=1
-
-    fig = plt.figure(figsize=(25, 20))
-    ax = fig.add_subplot(2, 1, 1)
-    mask2 = mask.reshape((nx,ny))
-    plt.imshow(mask2, cmap='gray')
-    plt.savefig('measure_locations.pdf')
-
-
-
+#TODO: fix file name dependency
 def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins, labels = None, nx=256, ny=256, nt=12500, rank=100, name="surf"):
+    """
+    Visualize spatial/temporal SVD modes together with singular values and
+    power–spectral‐density (PSD) curves.
+
+    A grid of subplots is created:
+
+    * **Rows 0–1:** spatial modes (chosen by ``mode_list``)  
+    * **Rows 2–3:** corresponding temporal coefficients  
+    * **Bottom row:** (i) normalized singular values and their cumulative
+      sum, (ii) PSD spectra for several SVD truncation ranks
+
+    The figure is saved as ``svd_spectra_<name>.pdf`` in the working
+    directory and displayed on screen.
+
+    Parameters
+    ----------
+    u_total : ndarray, shape (nx*ny, 2*rank) or (nx*ny, rank)
+        Matrix of left singular vectors (reshaped into spatial modes).
+    v_total : ndarray, shape (2*rank, nt) or (rank, nt)
+        Matrix of right singular vectors (temporal coefficients).
+    s_total : ndarray, shape (rank,)
+        Vector of singular values.
+    mode_list : list[int]
+        Indices of the singular modes to visualise (0‑based).
+    psd_multi : ndarray, shape (n_ranks, len(k_bins))
+        Pre‑computed PSD curves for different truncation ranks.
+    k_bins : ndarray
+        Wavenumber bins corresponding to ''psd_multi''.
+    labels : list[str] or None, optional
+        Legend labels for each PSD curve.  If *None*, generic labels
+        ``"PSD 1"``, ``"PSD 2"``… are used.
+    nx, ny : int, optional
+        Spatial grid dimensions used to reshape ``u_total``.  Default 256×256.
+    nt : int, optional
+        Number of time steps (x‑axis length for temporal plots).  Default 12 500.
+    rank : int, optional
+        Truncation rank that separates surface and velocity blocks in
+        ``u_total`` / ``v_total`` when ``name != "surf"``.  Default 100.
+    name : {"surf", "vel"}, optional
+        Selects which half of the SVD matrices is plotted.  Determines the
+        filename suffix.  Default ``"surf"``.
+
+    Returns
+    -------
+    None
+        The function produces a Matplotlib figure as a side‑effect and saves
+        it to disk.
+
+    Notes
+    -----
+    * Relies on the external ``ghibli`` palette for colours.
+    * Assumes spatial modes are stored column‑wise: the first ``rank``
+      columns correspond to surface (if ``name=="surf"``), the next
+      ``rank`` columns to velocity.
+    """
+    
     import ghibli as gh
 
     # Set color palette and LaTeX rendering
@@ -259,12 +171,26 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
 
 
-
+#done
 def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
-    '''given a DNS case, a plane level, a list of ranks for spectrum plotting and a list of SVD modes,
-        a full figure of spatial and temporal SVD modes, as well as cumulative sum of singular values
-        and the turbulence spectrum for different rank truncations,
-         is plotted all at once '''
+    '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
+     
+    Parameters
+    ----------
+    DNS_case : str
+        DNS case identifier (e.g. "S1", "S2").
+    plane : int
+        Horizontal plane index (between 1-57 for S1, 1-76 for S2).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
+
+    Returns
+        None '''
+
     
     DNS_case = utilities.case_name_converter(DNS_case)
 
@@ -276,23 +202,46 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
     U, S, V = utilities.open_SVD(1000, ens=None, vel_fluc=False, variable='u', Teetank=False, teetank_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
                                DNS_surf=False, DNS_case=DNS_case, Tee_plane='H390')
     
+    #get all singular values
     S_tot = utilities.get_singular_values_full(DNS_case, plane)
-    print("shape S_tot: ", S_tot.shape)
+    
+    #calculate PSD spectrum, to extract wavenumbers for binning
     spectra_ground_truth, k_bins = utilities.compute_psd(u_fluc, dx=1.0, dy=1.0)
-    #psd_ground_truth = spectra_ground_truth/spectra_ground_truth[0]
+    
     psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
     psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
 
-
-    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals(DNS_case, u_fluc, rank_list, num_ens=1, case=None, n_freqs=None, plane=plane)
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens=1, plane=plane)
     print("k vals: ", k_vals)
+
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
     plot_svd_and_spectra(U, np.transpose(V), S_tot, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=1000, name="surf")
 
 
 
-
+#done
 def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
-    '''Loads and plots SVD modes and spectra for a specific plane of the experimental '''
+    '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
+     
+    Parameters
+    ----------
+    exp_case : str
+        Experiment identifier (e.g. "E1", "E2").
+    plane : int
+        Horizontal plane index (1 = H395, 2 = H390, ...).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
+    ensembles : list[int]
+        List of ensemble IDs to load; the first entry is used
+        for raw‐field visualisation.
+
+    Returns
+        None '''
 
 
     exp_case = utilities.case_name_converter(exp_case)
@@ -323,7 +272,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
     psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
 
     #calculate PSD spectrum for a range of rank values r given in the rank_list
-    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_teetank(u_fluc, rank_list, exp_case,  900, ensembles, depth)
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_exp(u_fluc, rank_list, exp_case,  900, ensembles, depth)
 
     #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
     plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
@@ -551,7 +500,7 @@ def plot_recon_compare(surf_height, flow_surf, flow_depth, rank, nt):
     plt.savefig("compare_recon_rank"+str(rank)+"_nt"+str(nt)+".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
 
 
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
 
 def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_recon=None, labels_compr=None, split_rank=0, rank_list=None):
     """
@@ -667,110 +616,6 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_r
 
 
 
-# Function to plot the RMS results
-def plot_rms(ground_truth_rms, res_recon_rms, res_compr_rms, labels_recon, labels_compr, split_rank=0, rank_list=None):
-    """
-    Plot and compare depth-based rms of velocity
-    """
-    # Color map and LaTeX properties
-    import ghibli as gh
-    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "sans-serif",
-        "font.sans-serif": "Helvetica",
-    })
-
-    # Split plotting according to rank
-    if split_rank:
-        split_idx = len([i for i in rank_list if i < split_rank])
-    else:
-        split_idx = n_psds // 2  # Index to split the data for two panels
-
-    #fig, axs = plt.subplots(1, 2, figsize=(14, 6), sharey=True, constrained_layout=True)
-    fig, axs = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
-    # Panel 1: First half of RMSEs
-    next(axs[0]._get_lines.prop_cycler)['color'] # Skip first color
-    for i in range(split_idx):
-         color = next(axs[0]._get_lines.prop_cycler)['color']
-         axs[0].plot(res_recon_rms[i], range(len(ground_truth_rms)),linestyle='-', label=labels_recon[i], linewidth=1.5,color=color)
-         axs[0].plot(res_compr_rms[i], range(len(ground_truth_rms)),linestyle='--', label=labels_compr[i], linewidth=1.5,color=color)
-    axs[0].plot(ground_truth_rms, range(len(ground_truth_rms)), 'k-.', linewidth=2, label='Ground Truth')
-    axs[0].invert_yaxis()  # Depth: 0 at top, increasing down
-    axs[0].set_xlabel('RMS', fontsize=12)
-    axs[0].grid(True)
-    axs[0].legend(fontsize=10)
-
-    # Panel 1: First half of RMSEs
-    next(axs[1]._get_lines.prop_cycler)['color'] # Skip first color
-    for i in range(split_idx, res_recon_rms.shape[0]):
-         color = next(axs[1]._get_lines.prop_cycler)['color']
-         axs[1].plot(res_recon_rms[i], range(len(ground_truth_rms)), linestyle='-', label=labels_recon[i], linewidth=1.5,color=color)
-         axs[1].plot(res_compr_rms[i], range(len(ground_truth_rms)), linestyle='--', label=labels_compr[i], linewidth=1.5,color=color)
-    axs[1].plot(ground_truth_rms, range(len(ground_truth_rms)), 'k-.', linewidth=2, label='Ground Truth')
-    axs[1].invert_yaxis()  # Depth: 0 at top, increasing down
-    axs[1].set_xlabel('RMS', fontsize=12)
-    axs[1].grid(True)
-    axs[1].legend(fontsize=10)
-
-    import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-
-
-def plot_depth_dependent_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles,forecast=False,full_planes=True):
-    '''main plotter of error metrics'''
-    RMS_z = processdata.get_RMS_profile_true(DNS_case, vel_planes) #remembe: gives only correct planes, not full
-    z1 = utilities.get_zz_DNS(DNS_case)
-
-    RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case,
-    rank, vel_planes, num_sensors, SHRED_ensembles, forecast=forecast, full_planes=full_planes)
-
-    #only choose selected planes
-    i = [x-1 for x in vel_planes]
-    print(i)
-    j=i
-    if not full_planes:
-        i = [x for x in range(len(vel_planes))]
-    print(i)
-
-
-    plot_error_metrics_per_case(DNS_case,
-    z1[j], RMS_z, RMS_recons_avg[i], std_RMS_recons[i], None, None,
-    None, None, None, None,
-    mse_avg[i], std_mse_z[i], psd_avg[i], std_psd[i], ssim_avg[i], std_ssim[i],  psnr_avg[i], std_psnr[i])
-
-
-
-def plot_depth_dependent_error_metrics_v2(DNS_cases, ranks, colors, vel_planes1, vel_planes2, num_sensors, SHRED_ensembles,forecast=False,full_planes=True):
-    '''main plotter of error metrics for '''
-    fig=None
-    gs=None
-    for k in range(len(DNS_cases)):
-        DNS_case = DNS_cases[k]
-        if k==0:
-            vel_planes=vel_planes1
-        else:
-            vel_planes=vel_planes2
-        RMS_z = processdata.get_RMS_profile_true(DNS_case, vel_planes) #remembe: gives only correct planes, not full
-        z1 = utilities.get_zz_DNS(DNS_case)
-
-        RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case,
-        ranks[k], vel_planes, num_sensors, SHRED_ensembles, forecast=forecast, full_planes=full_planes)
-
-        #only choose selected planes
-        i = [x-1 for x in vel_planes]
-        print(i)
-        j=i
-        if not full_planes:
-            i = [x for x in range(len(vel_planes))]
-        print(i)
-
-        color=colors[k]
-
-        fig, gs = plot_error_metrics_per_case(DNS_case, k, color,
-        z1[j], RMS_z, RMS_recons_avg[i], std_RMS_recons[i], None, None,
-        None, None, None, None,
-        mse_avg[i], std_mse_z[i], psd_avg[i], std_psd[i], ssim_avg[i], std_ssim[i],  psnr_avg[i], std_psnr[i], fig, gs)
 
 def plot_depth_dependent_error_metrics_v3(DNS_cases, teetank_cases, ranks, colors, vel_planes1, vel_planes2, vel_planes_tee, num_sensors, SHRED_ensembles1, SHRED_ensembles2, SHRED_ensembles_p25, SHRED_ensembles_p50, tee_ensembles_p25, tee_ensembles_p50, forecast=False,full_planes=True, full_planes_tee=False, z_norm=None):
     '''main plotter of error metrics for '''

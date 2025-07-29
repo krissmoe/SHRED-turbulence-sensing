@@ -70,113 +70,147 @@ def stack_svd_arrays(vel_planes, rank, DNS=True, DNS_case='RE2500', teetank_ens=
     return U_tot, S_tot, V_tot
 
 
-
-def compute_psd(snapshots, dx=1.0, dy=1.0):
+#done
+def calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens, plane):
     """
-    Computes the mean PSD for an array of flow snapshots.
+    Compute ensemble‑averaged 1‑D power‑spectral densities (PSD) for multiple
+    SVD truncation ranks in a selected DNS velocity plane.
 
-    Parameters:
-    - snapshots: 3D NumPy array of shape (num_snapshots, nx, ny) containing flow snapshots.
-    - dx: Spacing between grid points in the x-direction.
-    - dy: Spacing between grid points in the y-direction.
+    Workflow
+    --------
+    1.  Load the full‑rank fluctuating velocity field, transpose to
+        `(nt, ny, nx)`, and compute a reference PSD.
+    2.  Loop over each rank in ``rank_list``  
+        a. Load reduced‑rank SVD factors via
+           ``utilities.open_and_reduce_SVD``.  
+        b. Reconstruct the velocity field at rank ``r_new``.  
+        c. Compute its PSD and store it for each ensemble.  
+    3.  Average PSDs across `num_ens` ensembles for each rank.
+    4.  Normalize all PSD curves by the global maximum for plotting.
+    5.  Return normalized PSD matrix and the wavenumber axis scaled by the
+        integral length scale of the DNS case.
 
-    Returns:
-    - psd_mean: 1D array of the mean PSD as a function of wavenumber.
-    - k_mid: 1D array of wavenumber bin midpoints.
+    Parameters
+    ----------
+    DNS_case : str
+        Identifier for the DNS dataset (e.g. "RE1000", "RE2500").
+    u_fluc : ndarray
+        Full‑rank fluctuating velocity field of shape `(ny, nx, nt)`.
+    rank_list : list[int]
+        List of truncation ranks to evaluate.  The first element should
+        match the baseline `r=1000` used when loading SVDs.
+    num_ens : int
+        Number of ensemble realizations to average over.
+    plane : int
+        Velocity‑plane index (0‑based or 1‑based depending on your utility).
+
+    Returns
+    -------
+    psd_multi : ndarray, shape (len(rank_list), len(k_vals))
+        PSD curves normalized to their global maximum.
+    k_vals : ndarray
+        Non‑dimensional wavenumber bins (scaled by the integral length
+        scale of the DNS case).
+
+    Notes
+    -----
+    * Spatial resolution is inferred from the DNS grid (`dx = dy = 2π/N`).
+    * Integrates with `utilities.compute_psd_1d` for PSD calculation.
+    * The first row of `psd_multi` corresponds to the full‑rank PSD.
     """
-    num_snapshots, nx, ny = snapshots.shape
-    
-    # Wavenumbers in each direction
-    kx = np.fft.fftfreq(nx, d=dx) * 2 * np.pi
-    ky = np.fft.fftfreq(ny, d=dy) * 2 * np.pi
-    kx, ky = np.meshgrid(kx, ky, indexing='ij')
-    k_magnitude = np.sqrt(kx ** 2 + ky ** 2)
-
-    k_max = np.max(k_magnitude)
-    k_bins = np.linspace(0, k_max, num=min(nx, ny) // 2)
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    # Initialize an array for storing the radial PSD
-    psd_all = np.zeros((num_snapshots, len(k_mid)))
-    #psd_all = []
-
-    #for snap in snapshots:
-    for i, snap in enumerate(snapshots):
-        # Compute 2D FFT
-        fft2 = np.fft.fft2(snap)
-        psd2d = np.abs(fft2) ** 2
-
-        # Flatten arrays for binning
-        k_flat = k_magnitude.flatten()
-        psd_flat = psd2d.flatten()
-
-        # Radial binning
-        psd_radial, _ = np.histogram(k_flat, bins=k_bins, weights=psd_flat)
-        count, _ = np.histogram(k_flat, bins=k_bins)
-
-        # Avoid division by zero
-        psd_radial = psd_radial / (count + 1e-10)
-        psd_all[i, :] = psd_radial
-        #psd_all.append(psd_radial)
-
-    # Average PSD across all snapshots
-    psd_all = np.array(psd_all)
-    psd_mean = np.mean(psd_all, axis=0)
-
-    # Compute the midpoints of wavenumber bins for output
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    return psd_mean, k_mid
-
-
-def calculate_PSD_r_vals(DNS_case, u_fluc, rank_list, num_ens, case, n_freqs, plane):
-    
 
     dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+    
+    #set spatial resolution based on DNS data
     dx = 2*np.pi/dimX
     dy=2*np.pi/dimY 
-    #u_fluc_nonan = np.nan_to_num(u_fluc[ensemble-1])
+    
     u_fluc = np.transpose(u_fluc, (2,0,1))
     PSD_vals, k_vals = utilities.compute_psd_1d(u_fluc, dx=dx, dy=dy, DNS=True)
-    #PSD_vals, k_vals = utilities.compute_psd(u_fluc_nonan, dx=dx, dy=dy)
-    #PSD_vals, k_vals = get_PSD_spectrum(u_fluc_nonan, swapaxis=False)
-    #nfreqs=dimX
+
     integral_length_scale=utilities.get_integral_length_scale(DNS_case)
     print("int length scale: ", integral_length_scale)
-    #k_max = 0.15
+    
     PSD_vals_all = np.zeros((num_ens, len(PSD_vals)))
     psd_multi_recon = np.zeros((len(rank_list), len(k_vals)))
     psd_multi_recon[0] = PSD_vals
     for i in range(1,len(rank_list)):
         r_new = rank_list[i]
-        print("spectral rank: ", r_new)
+       
         PSD_vals_all = np.zeros((num_ens, len(PSD_vals)))
         for j in range(num_ens):
 
-            #U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = open_and_reduce_SVD(j+1, case, r, r_new)
             U, S, V = utilities.open_and_reduce_SVD(None, None, 1000, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=False, DNS_case=DNS_case, Teetank=False, Tee_plane=None)
             u_svd = U @ np.diag(S) @ np.transpose(V)
             u_svd = utilities.convert_2d_to_3d(u_svd, dimX, dimY, dimT)
-            #u_fluc_nonan = np.nan_to_num(u_svd)
             u_svd = np.transpose(u_svd, (2,0,1))
-            #PSD_vals, k_vals = utilities.compute_psd(u_fluc_nonan, dx=dx, dy=dy)
             PSD_vals, k_vals = utilities.compute_psd_1d(u_svd, dx=dx, dy=dy, DNS=True)
             PSD_vals_all[j] = PSD_vals
 
         PSD_avg = np.mean(PSD_vals_all, axis=0)
 
         psd_multi_recon[i] = PSD_avg
+    
     #normalize k axis with integral length scale:
     k_vals = k_vals*integral_length_scale
-    print("k_vals: ", k_vals)
-    print("psd_vals0: ", psd_multi_recon[0])
-    print("psd_vals1:", psd_multi_recon[3])
     spectral_max=np.amax(psd_multi_recon)
     psd_multi = psd_multi_recon/spectral_max
     return psd_multi, k_vals
 
-def calculate_PSD_r_vals_teetank(u_fluc, rank_list, case,  r, ensembles, plane):
-    
+
+#done
+def calculate_PSD_r_vals_exp(u_fluc, rank_list, case,  r, ensembles, plane):
+    """
+    Compute ensemble‑averaged 1‑D power‑spectral densities (PSD) for several
+    SVD truncation ranks in an experimental Teetank velocity plane.
+
+    The function:
+        1. For each desired truncation rank in ``rank_list``  
+           a. Loads reduced SVD factors (`U`, `S`, `V`) for each ensemble  
+           b. Reconstructs the velocity field at rank ``r_new``  
+           c. Calculates a stream‑wise PSD via `utilities.compute_psd_1d`  
+           d. Averages PSDs across ensembles
+        2. Stacks the averaged PSD curves into ``psd_multi`` and normalizes
+           by their global maximum.
+        3. Returns normalized PSDs and the wavenumber axis scaled by the
+           integral length scale.
+
+    Parameters
+    ----------
+    u_fluc : ndarray
+        Full‑rank fluctuating velocity field; shape depends on experimental format
+        (typically `(n_ensembles, ny, nx, nt)`).
+    rank_list : list[int]
+        List of SVD truncation ranks to evaluate (e.g. `[50, 100, 250]`).
+    case : {"P25", "P50"}
+        Experimental case identifier; controls spatial resolution and
+        integral length scale.
+    r : int
+        Baseline rank used to load the pre‑computed SVD files.
+    ensembles : list[int]
+        experimental ensemble numbers to include in the PSD average.
+    plane : int
+        Velocity‑plane index (1 = H395, 2 = H390, …).
+
+    Returns
+    -------
+    psd_multi : ndarray, shape (len(rank_list), len(k_vals))
+        Normalized PSD curves for each rank in ``rank_list``.
+    k_vals : ndarray
+        Non‑dimensional wavenumber bins, scaled by the experiment’s
+        integral length scale.
+
+    Notes
+    -----
+    * Relies on helper functions in ``utilities`` and ``processdata`` to
+      load reduced SVD data and compute PSDs.
+    * Spatial resolutions are currently hard‑coded (`dx = dy = 1 mm`);
+      adjust if experimental setup changes.
+    * ``psd_multi`` is normalized to its global maximum for easier plotting.
+    """
+        
+
+    #set experimental spatial resolution
     dx = 1e-3
     dy=1e-3
     if case=='P25':
@@ -190,23 +224,20 @@ def calculate_PSD_r_vals_teetank(u_fluc, rank_list, case,  r, ensembles, plane):
     u_fluc_nonan = np.nan_to_num(u_fluc[ensemble-1])
     u_fluc_nonan = np.transpose(u_fluc_nonan, (2,0,1))
     PSD_vals, k_vals = utilities.compute_psd_1d(u_fluc_nonan, dx=dx, dy=dy)
-    #PSD_vals, k_vals = utilities.compute_psd(u_fluc_nonan, dx=dx, dy=dy)
-    #PSD_vals, k_vals = get_PSD_spectrum(u_fluc_nonan, swapaxis=False)
-    nfreqs=dimX
-    #k_max = 0.15
+
     PSD_vals_all = np.zeros((num_ens, len(PSD_vals)))
-    print("shape 1: ", PSD_vals_all.shape)
     psd_multi_recon = np.zeros((len(rank_list), len(k_vals)))
 
-    
     for i in range(len(rank_list)):
        
         r_new = rank_list[i]
         
         PSD_vals_all = np.zeros((num_ens, len(k_vals)))
         for j in range(len(ensembles)):
-            #if we ensemble average, then we should add this
+
             ensemble = ensembles[j]
+            
+            #get SVD matrices for velocity field
             U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(ensemble, case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', Teetank=True, Tee_plane=plane)
 
             u_svd = U_tot_u_red @ np.diag(S_tot_u_red) @ np.transpose(V_tot_red[:,r_new:2*r_new])
@@ -232,81 +263,6 @@ def calculate_PSD_r_vals_teetank(u_fluc, rank_list, case,  r, ensembles, plane):
     print("psd_multi: ", psd_multi)
     return psd_multi, k_vals
 
-def compute_indices(nt, lags, nt_forcast, data_split, shred_mode):
-    """
-    Compute indices for splitting data into separate datasets for training, validation and testing.
-    Returns arrays of indices.
-    """
-    # Number of elements in each data set (training, validation, testing)
-    n_train = int(nt * data_split[0])
-    # n_valid = int(nt * data_split[0]) - lags
-    # n_test = int(nt * data_split[0]) - lags
-
-    # Adjust numer of time step to include lags in data array
-    nt_forcast = nt_forcast * (shred_mode == "forcast")
-    nt_adj = nt - lags - nt_forcast
-
-    if nt_adj < n_train:
-        raise Exception("Too large lag or forcast for current data split")
-
-    # Compute training, validation and test indices, for the different uses of SHRED
-    train_indices = np.random.choice(nt_adj, size=n_train, replace=False)
-    if shred_mode == "forcast":
-        train_indices = np.sort(train_indices)
-
-    mask = np.ones(nt_adj)
-    mask[train_indices] = 0
-    valid_test_indices = np.arange(0, nt_adj)[np.where(mask!=0)[0]]
-
-    if shred_mode == "reconstruct":
-        valid_indices = valid_test_indices[::2]
-        test_indices = valid_test_indices[1::2]
-    else:
-        valid_indices = valid_test_indices
-        test_indices = np.arange(nt_adj, nt_adj + nt_forcast)
-        nt_adj = nt - lags
-
-    return train_indices, valid_indices, test_indices
-
-
-
-def compute_rms(ground_truth_all, res_recon_all, res_compr_all):
-    '''
-    Function that computes plane-wise rms for velocity arrays
-    '''
-    # Precompute variables
-    num_z = ground_truth_all.shape[0]  # Number of z-planes
-    num_compressions = res_recon_all.shape[0]  # Number of ranks
-
-    # Helper function to compute z-dependent RMS
-    def _compute_z_rms(array, rank_dim=True):
-        if rank_dim:
-            num_ranks = array.shape[0]
-            z_rms_all_ranks = []
-            for r in range(num_ranks):
-                z_rms = []
-                for z in range(num_z):
-                    plane = array[r, z, :, :, :]  # Shape [x, y, time]
-                    rms_time = np.sqrt(np.mean(plane**2, axis=(0, 1)))  # RMS for each time step
-                    rms_mean = np.mean(rms_time)  # Mean RMS over time
-                    z_rms.append(rms_mean)
-                z_rms_all_ranks.append(z_rms)
-            return np.array(z_rms_all_ranks)  # Shape [rank, z]
-        else:
-            z_rms = []
-            for z in range(num_z):
-                plane = array[z, :, :, :]  # Shape [x, y, time]
-                rms_time = np.sqrt(np.mean(plane**2, axis=(0, 1)))  # RMS for each time step
-                rms_mean = np.mean(rms_time)  # Mean RMS over time
-                z_rms.append(rms_mean)
-            return np.array(z_rms)  # Shape [z]
-
-    # Compute RMS for each array
-    ground_truth_rms = _compute_z_rms(ground_truth_all, rank_dim=False)
-    res_recon_rms = _compute_z_rms(res_recon_all, rank_dim=True)
-    res_compr_rms = _compute_z_rms(res_compr_all, rank_dim=True)
-
-    return ground_truth_rms, res_recon_rms, res_compr_rms
 
 
 
