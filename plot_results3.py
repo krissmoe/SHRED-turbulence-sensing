@@ -291,40 +291,44 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
 
 
 
-def plot_svd_and_spectra_teetank(teetank_case,plane, rank_list, mode_list, labels, ensembles):
-    u_fluc = utilities.get_velocity_plane_teetank(teetank_case, plane)
+def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
+    '''Loads and plots SVD modes and spectra for a specific plane of the experimental '''
+
+
+    exp_case = utilities.case_name_converter(exp_case)
+    
+    #extract raw velocity field
+    u_fluc = utilities.get_velocity_plane_teetank(exp_case, plane)
     ensemble = ensembles[0]
-    #u_fluc = u_fluc[ensemble-1]
+    
     dimX, dimY, dimT = utilities.get_dims_teetank_vel()
     depths = ['H395', 'H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(900, ensemble, vel_fluc=False, variable='u', Teetank=True, teetank_case=teetank_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, Tee_plane=depth)
-    print("HERE;", V_tot.shape)
-    V_tot_u = V_tot[:, 900:]
     
-    #S_tot = utilities.get_singular_values_full(DNS_case, plane)
+    #open pre-calculated SVD matrices
+    #NOTE: here we separate between matrices for velocity 'u' and surface elevation 'eta' due to difference in geometry/size
+        #but time dynamics of same sampling and length, so the V matrices are stacked together
+        #V_tot: matrix with horizontally stacked V matrices from eta (surface elevation field) and u (velocity field of chosen plane) respectively
+    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(900, ensemble, vel_fluc=False, variable='u', Teetank=True, teetank_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, Tee_plane=depth)
+    
+    #exctract V matrix for velocity field, from the total stacked V matrix
+    V_tot_u = V_tot[:, 900:]
+
     print("shape S_tot: ", S_tot_u.shape)
+
+    #calculate PSD spectrum, to extract wavenumbers for binning
     spectra_ground_truth, k_bins = utilities.compute_psd_1d(u_fluc[ensemble-1], dx=1e-3, dy=1e-3)
-    #psd_ground_truth = spectra_ground_truth/spectra_ground_truth[0]
+
     psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
     psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
-    #k_bins = np.zeros((int(nx / 2) - 1))
-    #for ii, rank in enumerate(rank_list):
-    #    print("Rank: " + str(rank))
-    #    rank = rank_list[ii]
 
-    #    U_red, S_red, V_red = utilities.reduce_SVD(U, S, V, 1, rank, Teetank=False, DNS_new=True, surf=False)
-    #
-    #    u_svd = U_red@ np.diag(S_red) @ np.transpose(V_red)
-    #    u_svd = utilities.convert_2d_to_3d(u_svd, dimX, dimY, dimT)
-    #    u_svd = np.transpose(u_svd, (2,0,1))
-    #    psd, k_bins = utilities.compute_psd(u_svd, dx=1.0, dy=1.0)
-    #    psd_multi_compr[ii,:] = psd
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_teetank(u_fluc, rank_list, exp_case,  900, ensembles, depth)
 
-    #labels=['900', '250', '100', '50', '25', '10', '5']
-
-    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_teetank(u_fluc, rank_list, teetank_case,  900, ensembles, depth)
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
     plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
+
+
 
 
 def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_vals, num_sensors):
