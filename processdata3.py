@@ -265,6 +265,7 @@ def calculate_PSD_r_vals_exp(u_fluc, rank_list, case,  r, ensembles, plane):
 
 
 '''SHRED ANALYSIS FUNCTIONS'''
+#done-ish
 def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
     """
     Train and evaluate SHRED on multiple DNS ensembles and SVD ranks, then
@@ -273,11 +274,11 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
     Parameters
     ----------
     r_vals : list[int] or ndarray
-        SVD truncation ranks to loop over.
+        SVD truncation ranks to evaluate.
     num_sensors : int
         Number of randomly placed surface sensors.
     ens_start, ens_end : int
-        Inclusive range of DNS ensemble numbers to process.
+        Inclusive range of SHRED ensemble SEEDS.
     vel_planes : list[int]
         Indices of velocity planes to include (surface plane handled
         automatically).
@@ -342,7 +343,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
             #stack sensor temporal data on top of the total V transposed array
             load_X = np.hstack((surf[sensor_locations_ne,:].T,load_X)) #horizontal stacking of arrays, columnwise, concatenation along 2nd axis
             n = (load_X).shape[0]   #number of snapshots in time series
-            m = (load_X).shape[1]   #number of planes * number of SVD modes, plus number of sensors
+            m = (load_X).shape[1]   #number of planes (plus surface) * number of SVD modes, plus number of sensors
 
             #creating a mask: grid with zeros expect the sensor points that's assigned with 1
             mask = np.zeros(dimX*dimY)
@@ -355,14 +356,14 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                 n = (load_X).shape[0]
 
                 train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
-        
+    
                 mask = np.ones(n - lags) 
                 mask[train_indices] = 0
 
                 valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
                 valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
                 test_indices = valid_test_indices[1::2] #and the other (10%) for testing
-                print("test: ", test_indices)
+                print("test indices: ", test_indices)
                 n_test = test_indices.size
 
             else:
@@ -396,7 +397,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
 
             ### Generate input sequences to a SHRED model
             all_data_in = np.zeros((n - lags, lags, num_sensors)) 
-            for i in range(len(all_data_in)): #iterate insert transformed traning data in sequences
+            for i in range(len(all_data_in)): #iterate and insert transformed traning data in sequences
                 all_data_in[i] = transformed_X[i:i+lags, sensor_locations]
 
             
@@ -419,7 +420,6 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
             
 
             #DOING SHRED
-
             shred = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
             validation_errors = models.fit(shred, train_dataset, valid_dataset, criterion='MSE', batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
             print("SHRED successfully done!")
@@ -480,67 +480,118 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                     f.create_dataset(key, data=value)
 
 
+#done-ish
+def SHRED_ensemble_exp(r_vals, num_sensors, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
+    """
+    Train SHRED on experimental data from the turbulent 'T-tank' for a single velocity plane
+    plus the surface, across multiple SVD ranks and experimental ensemble seeds, then
+    save reconstructed test snapshots to `.mat` files.
 
-def SHRED_ensemble_Tee(r_vals, sensors, X, ens_start, ens_end, case, teetank_ens, lags=52, Tee_plane='H390', random_sampling=True, forecast_Tee=False, criterion='MSE'):
-    #TODO: figure out what to do with Teetank ensembles
+    
+    Parameters
+    ----------
+    r_vals : list[int] or ndarray
+        SVD truncation ranks to evaluate.
+    num_sensors : int
+        Number of randomly placed surface sensors.
+    X : ndarray
+        Surface‑elevation time series (shape `(n_points, nt)`).
+    ens_start, ens_end : int
+        Inclusive range of SHRED ensemble seeds.
+    case : {"E1", "E2"}
+        experimental case identifier.
+    experiment_ens : int
+        Experimental ensemble number .
+    lags : int, default 52
+        lag for the time series for input in LSTM. Standard number used is 52
+    exp_plane : {"H390", "H375", "H350", "H300"}, optional
+        Velocity‑plane label to reconstruct. Standard is 'H390' (upper layer, 1 cm below surface)
+    random_sampling : bool, default True
+        If *True*, use random snapshot selection for train/val/test splits;
+        if *False*, use a contiguous test block (forecast mode).
+    criterion : {"MSE", ...}, default "MSE"
+        Loss function used in `models.fit`.
+
+    Returns
+    -------
+    None
+        Generates validation‑loss plots and writes HDF5 files named
+        ``Teetank_SHRED_*`` (or forecast variants) to `adr_loc`.
+
+    Notes
+    -----
+    * Only **one** velocity plane is processed at a time; `full_planes`
+      logic is DNS‑only.
+    * File paths are Windows‑specific; update `adr_loc` for portability.
+    * `X` must contain the full‐length sensor trajectories covering all
+      time steps of the reduced SVD matrices.
+    """
     #ONLY RUN SHRED FOR 1 PLANE PLUS SURFACE AT THE SAME TIME!
-    r=900
-    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(r, teetank_ens, vel_fluc=False, variable='u', Teetank=True, teetank_case=case,  DNS_new=False, DNS_plane=None, DNS_surf=False, Tee_plane=Tee_plane)
-    print(S_tot_u.shape)
-    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, Tee_plane)
+    
+    case = utilities.case_name_converter(case)
+    r=900 #manually set upper rank limit, i.e. length of dataset
+
+    X = utilities.get_normalized_surface_tee(case, plane, teetank_ens)
+    #exctract full SVD matrices for this plane (velocity plane stacked with surface)
+    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(r, experiment_ens, vel_fluc=False, variable='u', Teetank=True, teetank_case=case,  DNS_new=False, DNS_plane=None, DNS_surf=False, Tee_plane=exp_plane)
+    
+    #extract surface grid
+    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, exp_plane)
+    
+    #iterate SHRED ensembles p 
     for p in range(ens_start, ens_end+1):
-        #an ensemble
+        
+        #iterate over ranks, if input is a list
         for q in range(len(r_vals)):
             r = r_vals[q]
+            print("rank: ", r, "\n SHRED ensemble: ", p)
+            #reduce SVD matrices (only need V matrix)
             U_tot_u_red, S_tot_u_red, V_tot_red = utilities.reduce_SVD(U_tot_u, S_tot_u, V_tot, levels=2, r_new=r, Tee=True, surf=False)
-            print("r: ", r, "\n ens: ", p)
-            #U_tot, S_tot, V_tot = open_SVD(r) #load SVD files
             
-            
-            #do SHRED below
-            m2 = r #len(U) # svd modes used
-            print(m2)
-            num_sensors = sensors
-            
-            
-            nx = X_eta.shape[0] #NOTE: THESE COULD BE SWAPPED!
-            ny = X_eta.shape[1]
+            dimX = X_eta.shape[0] 
+            dimY = X_eta.shape[1]
 
+            #building array for input to SHRED
+            #first insert V matrix for chosen plane + corresponding surface 
             load_X = V_tot_red
-            n2 = X_eta.shape[0]*X_eta.shape[1]
+            
             #assign random sensor placements
-            sensor_locations_ne = np.random.choice(n2, size=num_sensors, replace=False)
+            sensor_locations_ne = np.random.choice(dimX*dimY, size=num_sensors, replace=False)
             print("sensor_loc: ", sensor_locations_ne)
             sensor_locations = np.arange(0,num_sensors,1, dtype=int)
     
-            #want to stack the sensor temporal data on top of the total V transposed array
+            #stack sensor temporal data on top of the total V transposed array
             load_X = np.hstack((X[sensor_locations_ne,:].T,load_X)) #horizontal stacking of arrays, columnwise, concatenation along 2nd axis
-            n = (load_X).shape[0] #12000 snapshots
-            m = (load_X).shape[1] #303 total modes
+            n = (load_X).shape[0] #number of snapshots in time series
+            m = (load_X).shape[1] #number of planes (surface + one velocity plane) * number of SVD modes, plus number of sensors
 
             #creating a mask: grid with zeros expect the sensor points that's assigned with 1
-            mask = np.zeros(n2)
+            mask = np.zeros(dimX*dimY)
             for i in range(num_sensors):
                 mask[sensor_locations_ne[i]]=1
 
-            mask2 = mask.reshape((nx,ny))
-        
+            #choose mode for separation of data into training/validation/testing
             if random_sampling:
                 n = (load_X).shape[0]
-                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False)
-                #create a mask that marks the validation snapshots. value=1 for validation, and zero for training
-                mask = np.ones(n - lags) #creates 2000-52 =1948 ones, but we fill in 0s at the train indices
+                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
+                
+                mask = np.ones(n - lags) 
                 mask[train_indices] = 0
 
-                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices not used for training
-                valid_indices = valid_test_indices[::2] #pick every other index for validation and the others for test
-                test_indices = valid_test_indices[1::2]
-                print("test: ", test_indices)
+                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
+                valid_indices = valid_test_indices[::2] #pick every other index for validation (10%)
+                test_indices = valid_test_indices[1::2] #and the other (10%) for testing
+                print("test indices: ", test_indices)
                 n_test = test_indices.size
 
                 
             else:
+                #forecast, by choosing test data as one continuous chunk of the time series
+                #this forecast is only within one experimental ensemble case, 
+                # not e.g. training on some cases and testing on others
+                # #NOTE: note fully compatible with rest of code 
                 n = (load_X).shape[0]
+                
                 n_valid = int(n*0.1)
                 n_train = int(n*0.8) #n - lags - n_test - n_valid
                 print("n_train: ", n_train)
@@ -556,26 +607,23 @@ def SHRED_ensemble_Tee(r_vals, sensors, X, ens_start, ens_end, case, teetank_ens
 
     
 
-            print("valid_indices shape: ", valid_indices.shape)
-            print("test_indices shape: ", test_indices.shape)
-            print("train_indices shape: ", train_indices.shape)
 
 
-
+            #scaling the input training data to SHRED
             sc = MinMaxScaler()
             sc = sc.fit(load_X[train_indices]) #computes min/max of training data for later scaling
             transformed_X = sc.transform(load_X) #use the previous scaling to fit and transform the training data
 
 
             ### Generate input sequences to a SHRED model
-            all_data_in = np.zeros((n - lags, lags, num_sensors)) #(2000-52, 52, 3)
-            for i in range(len(all_data_in)): #iterate 2000-52 times, and insert transformed traning data in sequences in a gliding way
+            all_data_in = np.zeros((n - lags, lags, num_sensors)) 
+            for i in range(len(all_data_in)): #iterate and insert transformed traning data in sequences
                 all_data_in[i] = transformed_X[i:i+lags, sensor_locations]
 
-            print("transformed data: ", all_data_in)
+
             ### Generate training validation and test datasets both for reconstruction of states and forecasting sensors
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            print("device: ", device)
+            #print("device: ", device)
 
             train_data_in = torch.tensor(all_data_in[train_indices], dtype=torch.float32).to(device)
             valid_data_in = torch.tensor(all_data_in[valid_indices], dtype=torch.float32).to(device)
@@ -590,15 +638,19 @@ def SHRED_ensemble_Tee(r_vals, sensors, X, ens_start, ens_end, case, teetank_ens
             valid_dataset = TimeSeriesDataset(valid_data_in, valid_data_out)
             test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
             
-            print("test_dataset: ", test_dataset)
+        
 
 
 
-            #DOING THE SHRED
+            #DOING SHRED
 
             shred = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
             validation_errors = models.fit(shred, train_dataset, valid_dataset, batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
-            print("Done")
+            print("SHRED successfully done!")
+            #SHRED DONE
+            
+
+            #plot validation loss function
             if case=='P50':
                 case_name ='E2'
             else:
@@ -613,26 +665,35 @@ def SHRED_ensemble_Tee(r_vals, sensors, X, ens_start, ens_end, case, teetank_ens
             plt.legend(fontsize=13)
             plt.grid(True)
             plt.show()
-            #Now we test the reconstruction
-            n_s = num_sensors
+        
+           #extract test reconstructions
             test_recons = sc.inverse_transform(shred(test_dataset.X).detach().cpu().numpy()) 
             test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy()) 
             print(np.linalg.norm(test_recons - test_ground_truth) / np.linalg.norm(test_ground_truth))
 
+            #save SHRED output
             SHRED_dict = {
                 'test_recons': test_recons,
                 'test_ground_truth': test_ground_truth,
                 'test_indices' : test_indices,
             }
-            print(r)
+            #NOTE: hard-coded file naming system
+            
             adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
             if random_sampling:
-                SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(teetank_ens) + "_"+ case + "_" + Tee_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
+                SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
             else:
-                SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" + case + "_" +Tee_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
+                SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" + case + "_" +exp_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
+
+
+
+
+
+
+
 
 """ The following functions are used to compute depth dependent error metrics of the reconstructed data (RD) when 
 compared to ground truth (GT). The eight functions focus on flow statistics (flow rmse, TKE), turbulent statistics 

@@ -320,8 +320,8 @@ def get_normalized_surface_DNS(DNS_case):
     #n2 = (X).shape[0]
     return X
 
-def get_normalized_surface_tee(tee_case, plane, tee_ens):
-    eta_fluc = get_surface_teetank(tee_case, plane)
+def get_normalized_surface_exp(exp_case, plane, tee_ens):
+    eta_fluc = get_surface_teetank(exp_case, plane)
     eta_fluc_2d = convert_3d_to_2d(eta_fluc[:,:,:,tee_ens-1])
     Xnorm= np.max(np.abs(eta_fluc))
     X = eta_fluc_2d/Xnorm #note, this is surface velocity
