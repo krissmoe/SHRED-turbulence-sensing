@@ -273,7 +273,7 @@ def read_teetank_plane(case='P25',depth='H390',variable='U0',surface=False):
 
     with h5py.File(tee_fname, 'r') as tee:
         # List all datasets in the file
-        print("Keys in the HDF5 file:", list(tee.keys()))
+        #print("Keys in the HDF5 file:", list(tee.keys()))
 
         U = np.array(tee['U'])
     return U
@@ -286,7 +286,7 @@ def read_teetank_surface(case='P25', depth='H390'):
 
     with h5py.File(surf_fname, 'r') as tee:
         # List all datasets in the file
-        print("Keys in the HDF5 file:", list(tee.keys()))
+        #print("Keys in the HDF5 file:", list(tee.keys()))
 
         eta_fluc = np.array(tee['eta'])
     return eta_fluc
@@ -901,7 +901,7 @@ def get_test_imgs_SHRED_Teetank1(eta_fluc, u_fluc, teetank_ens, teetank_case,r, 
         #shift indices
         shift = shift - dimT*(num_ensembles-1)
 
-    print("shift1: ", shift)
+    #print("shift1: ", shift)
     num_test_snaps = len(test_indices2)
             
     
@@ -946,12 +946,12 @@ def get_test_imgs_SHRED_Teetank1(eta_fluc, u_fluc, teetank_ens, teetank_case,r, 
         eta_svd = eta_svd[:,shift]
         eta_svd_test = convert_2d_to_3d(eta_svd, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
         del eta_svd
-        print("eta_svd_shape: ", eta_svd_test.shape)
+        #print("eta_svd_shape: ", eta_svd_test.shape)
         u_svd = U_tot_u_red @ np.diag(S_tot_u_red) @ np.transpose(V_tot_red[:, r_new:2*r_new])
         u_svd = u_svd[:,shift]
         u_svd_test = convert_2d_to_3d(u_svd, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
     
-        print("u_svd: ", u_svd.shape)
+        #print("u_svd: ", u_svd.shape)
         del u_svd
 
         #construct reconstructions

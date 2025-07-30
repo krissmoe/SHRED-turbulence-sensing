@@ -146,7 +146,7 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
         #label = labels[i] if labels else f"PSD {i + 1}"
         label = f"r = {labels[i]}" if labels else f"PSD {i + 1}"
         plt.loglog(k_bins, psd_multi[i,:], label=label)
-        print(psd_multi[i,:])
+        #print(psd_multi[i,:])
     #ax2.set_xlim(10,10000)
     
     ax2.set_ylim(1e-8, 3)
@@ -213,7 +213,6 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
 
     #calculate PSD spectrum for a range of rank values r given in the rank_list
     psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens=1, plane=plane)
-    print("k vals: ", k_vals)
 
     #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
     plot_svd_and_spectra(U, np.transpose(V), S_tot, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=1000, name="surf")
@@ -262,8 +261,6 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
     
     #exctract V matrix for velocity field, from the total stacked V matrix
     V_tot_u = V_tot[:, 900:]
-
-    print("shape S_tot: ", S_tot_u.shape)
 
     #calculate PSD spectrum, to extract wavenumbers for binning
     spectra_ground_truth, k_bins = utilities.compute_psd_1d(u_fluc[ensemble-1], dx=1e-3, dy=1e-3)

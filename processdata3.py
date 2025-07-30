@@ -129,7 +129,6 @@ def calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens, plane):
     PSD_vals, k_vals = utilities.compute_psd_1d(u_fluc, dx=dx, dy=dy, DNS=True)
 
     integral_length_scale=utilities.get_integral_length_scale(DNS_case)
-    print("int length scale: ", integral_length_scale)
     
     PSD_vals_all = np.zeros((num_ens, len(PSD_vals)))
     psd_multi_recon = np.zeros((len(rank_list), len(k_vals)))
@@ -244,10 +243,10 @@ def calculate_PSD_r_vals_exp(u_fluc, rank_list, case,  r, ensembles, plane):
             u_svd = utilities.convert_2d_to_3d(u_svd, dimY, dimX, dimT)
             u_fluc_nonan = np.nan_to_num(u_svd)
             u_svd = np.transpose(u_fluc_nonan, (2,0,1))
-            print(u_svd.shape)
+            #print(u_svd.shape)
             #PSD_vals, k_vals = utilities.compute_psd(u_fluc_nonan, dx=dx, dy=dy)
             PSD_vals, k_vals = utilities.compute_psd_1d(u_svd, dx=dx, dy=dy) #get_PSD_spectrum(u_fluc_nonan, swapaxis=False)
-            print("shape 2: ", PSD_vals.shape)
+            
             PSD_vals_all[j] = PSD_vals
 
         PSD_avg = np.mean(PSD_vals_all, axis=0)
@@ -259,113 +258,148 @@ def calculate_PSD_r_vals_exp(u_fluc, rank_list, case,  r, ensembles, plane):
 
     #normalize k axis with integral length scale:
     k_vals = k_vals*integral_length_scale
-    print("k_vals: ", k_vals)
-    print("psd_multi: ", psd_multi)
+
     return psd_multi, k_vals
 
 
 
 
 '''SHRED ANALYSIS FUNCTIONS'''
-def SHRED_ensemble_DNS(r_vals, sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='RE2500', criterion='MSE'):
-    
-    X = utilities.get_normalized_surface_DNS(DNS_case)
-    
-    for p in range(ens_start, ens_end+1):
-        #an ensemble
-        for q in range(len(r_vals)):
-            r = r_vals[q]
-            print("r: ", r, "\n ens: ", p)
-            U_tot, S_tot, V_tot = stack_svd_arrays(vel_planes, r, DNS_case=DNS_case)
+def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
+    """
+    Train and evaluate SHRED on multiple DNS ensembles and SVD ranks, then
+    save reconstructed test snapshots to `.mat` files.
 
-            #do SHRED below
-            m2 = r #len(U) # svd modes used
-            print(m2)
-            num_sensors = sensors
-            lags = lags
-            if DNS_case=='RE2500':
-                dimX = 256
-                dimY = 256
-                dimT = 12500
-            elif DNS_case=='RE1000':
-                dimX = 128
-                dimY = 128
-                dimT = 10900
-            nx = dimX
-            ny = dimY
-            n2 = nx*ny
+    Parameters
+    ----------
+    r_vals : list[int] or ndarray
+        SVD truncation ranks to loop over.
+    num_sensors : int
+        Number of randomly placed surface sensors.
+    ens_start, ens_end : int
+        Inclusive range of DNS ensemble numbers to process.
+    vel_planes : list[int]
+        Indices of velocity planes to include (surface plane handled
+        automatically).
+    lags : int
+        lag for the time series for input in LSTM. Standard number used is 52
+    full_planes : bool, default True
+        If True, stack all velocity planes; otherwise only those in
+        ``vel_planes``.
+    random_sampling : bool, default True
+        If *True*, use random snapshot selection for train/val/test splits;
+        if *False*, use a contiguous test block (forecast mode).
+    DNS_case : {"S1", "S2"}, optional
+        Case identifier; passed to utility loaders.
+    criterion : {"MSE", ...}, default "MSE"
+        Loss function name passed to :pyfunc:`models.fit`.
+
+    Returns
+    -------
+    None
+        This function is used for its side‑effects:
+        * Trains SHRED models and shows loss plots.
+        * Saves HDF5 files named
+          ``SHRED_r{r}_{num_sensors}sensors_ens{p}.mat`` (or forecast
+          variants) in `adr_loc`.
+
+    Notes
+    -----
+    * Baseline full SVD rank ``r = 1000`` is hard‑coded.
+    * File paths are Windows‑style; adjust `adr_loc` for portability.
+    * Large raw DNS arrays must exist locally; not downloaded here.
+    """
+
+    DNS_case = utilities.case_name_converter(DNS_case)
+
+    #extract surface and normalize
+    surf = utilities.get_normalized_surface_DNS(DNS_case)
+    
+    #iterate SHRED ensembles p 
+    for p in range(ens_start, ens_end+1):
+        
+        #iterate over ranks, if input is a list
+        for q in range(len(r_vals)):
+           
+            r = r_vals[q]
+            print("rank: ", r, "\n SHRED ensemble: ", p)
+            
+            #get SVD arrays and stack horizontally
+            # includes all planes, plus SVD of surface on top
+            U_tot, S_tot, V_tot = stack_svd_arrays(vel_planes, r, DNS_case=DNS_case)
+            
+            dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+
+            #building array for input to SHRED
+            #first insert V matrices fo all chosen velocity planes + surface 
             load_X = V_tot
 
             #assign random sensor placements
-            sensor_locations_ne = np.random.choice(n2, size=num_sensors, replace=False)
+            sensor_locations_ne = np.random.choice(dimX*dimY, size=num_sensors, replace=False)
             print("sensor_loc: ", sensor_locations_ne)
             sensor_locations = np.arange(0,num_sensors,1, dtype=int)
     
-            #want to stack the sensor temporal data on top of the total V transposed array
-            load_X = np.hstack((X[sensor_locations_ne,:].T,load_X)) #horizontal stacking of arrays, columnwise, concatenation along 2nd axis
-            n = (load_X).shape[0] #12000 snapshots
-            m = (load_X).shape[1] #303 total modes
+            #stack sensor temporal data on top of the total V transposed array
+            load_X = np.hstack((surf[sensor_locations_ne,:].T,load_X)) #horizontal stacking of arrays, columnwise, concatenation along 2nd axis
+            n = (load_X).shape[0]   #number of snapshots in time series
+            m = (load_X).shape[1]   #number of planes * number of SVD modes, plus number of sensors
 
             #creating a mask: grid with zeros expect the sensor points that's assigned with 1
-            mask = np.zeros(n2)
+            mask = np.zeros(dimX*dimY)
             for i in range(num_sensors):
                 mask[sensor_locations_ne[i]]=1
 
-            mask2 = mask.reshape((nx,ny))
-        
+
+            #choose mode for separation of data into training/validation/testing
             if random_sampling:
                 n = (load_X).shape[0]
-                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False)
-                #create a mask that marks the validation snapshots. value=1 for validation, and zero for training
-                mask = np.ones(n - lags) #creates 2000-52 =1948 ones, but we fill in 0s at the train indices
+
+                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
+        
+                mask = np.ones(n - lags) 
                 mask[train_indices] = 0
 
-                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices not used for training
-                valid_indices = valid_test_indices[::2] #pick every other index for validation and the others for test
-                test_indices = valid_test_indices[1::2]
+                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
+                valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
+                test_indices = valid_test_indices[1::2] #and the other (10%) for testing
                 print("test: ", test_indices)
                 n_test = test_indices.size
 
             else:
-                #forecast
+                #forecast, by choosing test data as one continuous chunk of the time series 
+                #NOTE: note fully compatible with rest of code
                 n = (load_X).shape[0]
                 
-                n_train_valid = int(n*0.95) #n - lags - n_test - n_valid
+                n_train_valid = int(n*0.90) #n - lags - n_test - n_valid
                 
                 n_test = n-lags - n_train_valid
                 print("n_test: ", n_test)
 
-                n_train = int(0.8*n_train_valid)
+                n_train = int((8/9)*n_train_valid)
                 n_valid = n_train_valid - n_train
 
-                #train_indices = np.arange(0, int(n*0.85))
-                #create a mask that marks the validation snapshots. value=1 for validation, and zero for training
-                #mask = np.ones(n_train + n_valid) 
-                #mask[train_indices] = 0
+                #randomize training in the dedicated training-validation dataset
                 train_indices = np.random.choice(n_train_valid, size=n_train, replace=False)
-                train_indices = np.arange(0, n_train)
-                mask = np.ones(n_train_valid) #creates 2000-52 =1948 ones, but we fill in 0s at the train indices
+                #train_indices = np.arange(0, n_train)
+                mask = np.ones(n_train_valid) 
                 mask[train_indices] = 0
                 valid_indices = np.arange(0, n_train_valid)[np.where(mask!=0)[0]]
-                
-                #test_indices = np.arange(n_train_valid, dimT-lags)
-                
-                #test_indices = np.arange(n_train_valid, n_train_valid+1)
-                test_indices = np.arange(6000,6500)
+
+                test_indices = np.arange(n_train_valid, n-lags)
             
-            print("test_indices shape: ", test_indices.shape)
-            
+           
+            #scaling the input training data to SHRED
             sc = MinMaxScaler()
             sc = sc.fit(load_X[train_indices]) #computes min/max of training data for later scaling
             transformed_X = sc.transform(load_X) #use the previous scaling to fit and transform the training data
 
 
             ### Generate input sequences to a SHRED model
-            all_data_in = np.zeros((n - lags, lags, num_sensors)) #(2000-52, 52, 3)
-            for i in range(len(all_data_in)): #iterate 2000-52 times, and insert transformed traning data in sequences in a gliding way
+            all_data_in = np.zeros((n - lags, lags, num_sensors)) 
+            for i in range(len(all_data_in)): #iterate insert transformed traning data in sequences
                 all_data_in[i] = transformed_X[i:i+lags, sensor_locations]
 
-            print("transformed data: ", all_data_in)
+            
             ### Generate training validation and test datasets both for reconstruction of states and forecasting sensors
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             #print("device: ", device)
@@ -374,7 +408,7 @@ def SHRED_ensemble_DNS(r_vals, sensors, ens_start, ens_end, vel_planes, lags, fu
             valid_data_in = torch.tensor(all_data_in[valid_indices], dtype=torch.float32).to(device)
             test_data_in = torch.tensor(all_data_in[test_indices], dtype=torch.float32).to(device)
 
-            ### -1 to have output be at the same time as final sensor measurements
+           
             train_data_out = torch.tensor(transformed_X[train_indices + lags - 1], dtype=torch.float32).to(device)
             valid_data_out = torch.tensor(transformed_X[valid_indices + lags - 1], dtype=torch.float32).to(device)
             test_data_out = torch.tensor(transformed_X[test_indices + lags - 1], dtype=torch.float32).to(device)
@@ -383,15 +417,16 @@ def SHRED_ensemble_DNS(r_vals, sensors, ens_start, ens_end, vel_planes, lags, fu
             valid_dataset = TimeSeriesDataset(valid_data_in, valid_data_out)
             test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
             
-            
 
-
-
-            #DOING THE SHRED
+            #DOING SHRED
 
             shred = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
             validation_errors = models.fit(shred, train_dataset, valid_dataset, criterion='MSE', batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
-            
+            print("SHRED successfully done!")
+            #SHRED DONE
+
+
+            #plot validation loss function
             if DNS_case=='RE2500':
                 case_name = 'S2'
             else:
@@ -408,26 +443,28 @@ def SHRED_ensemble_DNS(r_vals, sensors, ens_start, ens_end, vel_planes, lags, fu
             plt.grid(True)
             plt.show()
 
-            #Now we test the reconstruction
-            n_s = num_sensors
+            #extract test reconstructions
             test_recons = sc.inverse_transform(shred(test_dataset.X).detach().cpu().numpy()) 
             test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy()) 
-            print(np.linalg.norm(test_recons - test_ground_truth) / np.linalg.norm(test_ground_truth))
+            print("test error: ", np.linalg.norm(test_recons - test_ground_truth) / np.linalg.norm(test_ground_truth))
 
+            #save SHRED output
             SHRED_dict = {
                 'test_recons': test_recons,
                 'test_ground_truth': test_ground_truth,
                 'test_indices' : test_indices,
             }
             
+            #NOTE: hard-coded file naming system
             adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
             
-            if not full_planes:
+            if full_planes:
+                plane_string ="_full_planes"
+
+            else:
                 plane_string = "_planes"
                 for i in range(len(vel_planes)):
                     plane_string = plane_string + "_" +  str(vel_planes[i]) 
-            else:
-                plane_string ="_full_planes"
 
             if random_sampling:
                 SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
@@ -441,6 +478,8 @@ def SHRED_ensemble_DNS(r_vals, sensors, ens_start, ens_end, vel_planes, lags, fu
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
+
+
 
 def SHRED_ensemble_Tee(r_vals, sensors, X, ens_start, ens_end, case, teetank_ens, lags=52, Tee_plane='H390', random_sampling=True, forecast_Tee=False, criterion='MSE'):
     #TODO: figure out what to do with Teetank ensembles
@@ -1615,7 +1654,7 @@ def get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sens
         
             with h5py.File(err_fname, 'r') as err_dict:
                 # List all datasets in the file
-                print("Keys in the HDF5 file:", list(err_dict.keys()))
+                #print("Keys in the HDF5 file:", list(err_dict.keys()))
 
                 RMS_recons = np.array(err_dict['RMS_recons'])
                 RMS_true = np.array(err_dict['RMS_true'])
