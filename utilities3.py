@@ -321,6 +321,7 @@ def get_normalized_surface_DNS(DNS_case):
     return X
 
 def get_normalized_surface_exp(exp_case, plane, tee_ens):
+    exp_case = case_name_converter(exp_case)
     eta_fluc = get_surface_teetank(exp_case, plane)
     eta_fluc_2d = convert_3d_to_2d(eta_fluc[:,:,:,tee_ens-1])
     Xnorm= np.max(np.abs(eta_fluc))
