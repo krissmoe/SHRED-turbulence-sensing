@@ -1245,12 +1245,12 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
     '''function for plotting ground truth, SVD and SHRED-SVD
         of selected planes and surface'''
     
+    DNS_case = utilities.case_name_converter(DNS_case)
+
     #set location folder for plots
     adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS"
     r=1000
-    teetank_ens=None
-    case=None
-    eta_fluc=np.zeros(1) #just a filler, not important. Remove later
+    
     if DNS_case=='RE2500':
         tot_num_planes=76
     else:
@@ -1260,27 +1260,29 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
     XX,YY = utilities.get_mesh_DNS(DNS_case)
 
     #get SHRED V matrices
-    test_recons, test_ground_truth, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast, DNS_case=DNS_case)
+    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, None, r_new, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast, DNS_case=DNS_case)
 
     #get surface elevation
     all_rows = []
     if add_surface:
-        plane=0
+        plane=0 #correct plane number for surface elevation 
         plane_index=0
-        eta_fluc_test, eta_svd_test, eta_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, eta_fluc, test_recons, test_indices, r, r_new,
+        surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, np.zeros(1), V_test_recons, V_test_indices, r, r_new,
                                                                                                 num_sensors, lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
         del u_fluc2
-        eta_fluc_test = eta_fluc_test[:, :, test_snap_index]
-        eta_svd = eta_svd_test[:, :, test_snap_index]
-        eta_recons = eta_recons_test[:, :, test_snap_index]
-        row1 = [eta_fluc_test, eta_svd, eta_recons]  # First row
+
+        #extract specific snapshot
+        surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+        surf_svd = surf_svd_test[:, :, test_snap_index]
+        surf_recons = surf_recons_test[:, :, test_snap_index]
+        row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
         all_rows.append(row1)
         spacing = 0.1
         fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
         for j, snapshot in enumerate(row1):
-            colour_levels = np.linspace(-eta_scale,eta_scale, 500)
             ax = axs[j]
-            contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmocean.cm.ice)
+            
+            ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=-eta_scale, vmax=eta_scale)
             ax.axis('off')
 
         filename = adr_loc_3 + "compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) +".png"
@@ -1288,7 +1290,7 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
         
         plt.show()
     
-    
+    #iterate and plot velocity planes
     for i in range(len(vel_planes)):
         print("plane ", vel_planes[i])
         plane = vel_planes[i]
@@ -1300,7 +1302,7 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
         u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
         
         print("getting test images")
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, test_recons, test_indices, r, r_new,
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_test_recons, V_test_indices, r, r_new,
                                                                                             num_sensors, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
         del u_fluc2
         print("test images extracted")
@@ -1326,12 +1328,8 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
         for j, snapshot in enumerate(row):
             colour_levels = np.linspace(-u_scale,u_scale, 500)
             ax = axs[j]
-            contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = 'RdBu_r')
+            ax.imshow(snapshot,  cmap='RdBu_r', interpolation='bilinear', vmin=-u_scale, vmax=u_scale)
             ax.axis('off')
-
-        # Adjust layout and display the plot
-        # plt.tight_layout()
-        #plt.show()
 
         filename = adr_loc_3 + "compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) +".png"
         plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
@@ -1356,50 +1354,27 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
         for k, row in enumerate(all_rows):
             for j, snapshot in enumerate(row):
                 if k==0:
-                    colour_levels = np.linspace(-eta_scale,eta_scale, 100)
                     vmin = -eta_scale
                     vmax = eta_scale + 0.2*eta_scale
-                    #if j==1:
-                    #    ax.set_title("Ground truth")
-                    #elif j==2:
-                    #    ax.set_title("Compressed")
-                    #else:
-                    #    ax.set_title("Reconstruction")
-                elif k==1:
-                    colour_levels = np.linspace(-u_scale,u_scale, 100)
-                    vmin = -u_scale
-                    vmax = u_scale
-                else:
-                    colour_levels = np.linspace(-u_scale*1.48,u_scale*1.48, 100)
-                    vmin = -u_scale
-                    vmax = u_scale
 
+                else:
+                    vmin = -u_scale
+                    vmax = u_scale
 
                 ax = axs[k,j]
              
                 ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=vmin, vmax=vmax)
-                #contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmaps[k],antialiased=False)
+                
                 ax.axis('off')
-                #ax.axis('square')
-                #my_ticks = np.arange(-0.75,0.75,0.15)
-                #cb = plt.colorbar(ticks=my_ticks)
-                #ax1.tick_params(axis='both', labelsize=16)
-                #cb.set_label(label='u [m/s]', fontsize=16)
-                #fig.colorbar(contour1, ax=ax1, ticks=my_ticks, label="u' [m/s]")
 
-
-                #ax = axs[k, j]
-                #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
-                #ax.axis('off')
     plt.show()
     filename = adr_loc_3 + "compare_recon_"+DNS_case+"_rank"+str(r_new)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
-    #fig.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
     fig.savefig(adr_loc_3 + "compare_recon_DNS_"+DNS_case+"_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) + ".pdf", format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
     plt.close()
 
 
 
-def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane_list, test_snap_index, eta_scale, u_scale, u_fluc=None, eta_fluc=None, 
+def plot_SHRED_comparison_exp(r_new, exp_case, teetank_ens, SHRED_ens, plane_list, test_snap_index, eta_scale, u_scale, u_fluc=None, eta_fluc=None, 
                               num_sensors=3, lags=52, forecast=False, add_surface=False):
     '''function for plotting ground truth, SVD and SHRED-SVD
         of surface elevation and velocity 1 cm below'''
@@ -1421,12 +1396,12 @@ def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane
         planes = ['H395', 'H390', 'H375', 'H350', 'H300']
         plane = planes[plane_list[i]-1]
         print("plane: ", plane)
-        X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(teetank_case, plane)
+        X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(exp_case, plane)
         #plane_index = i+1
         #construct raw fields
 
         #get SHRED V matrices
-        test_recons, test_ground_truth, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, r_new, num_sensors, 
+        test_recons, test_ground_truth, test_indices = utilities.open_SHRED(teetank_ens, exp_case, r_new, num_sensors, 
                                                                             SHRED_ens, plane_list, DNS=False, Tee_plane=plane, full_planes=True, forecast=forecast)
         
 
@@ -1436,7 +1411,7 @@ def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane
             #plane=0
             #plane_index=0
             eta_fluc_test, eta_svd_test, eta_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
-                                                                                                            X_eta, X_vel, teetank_ens, teetank_case, r, r_new, 
+                                                                                                            X_eta, X_vel, teetank_ens, exp_case, r, r_new, 
                                                                                                             SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True,
                                                                                                               lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
             del u_fluc2
@@ -1455,7 +1430,7 @@ def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane
                 contour1 = ax.contourf(X_eta,Y_eta, snapshot, levels = colour_levels, cmap = cmocean.cm.ice)
                 ax.axis('off')
 
-            filename = adr_loc_3 + "Teetank_compare_recon_SURF_ELEV_rank"+str(r_new)+ "_" +teetank_case +"_"+plane +  "_tee_ens_"+str(teetank_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+            filename = adr_loc_3 + "Teetank_compare_recon_SURF_ELEV_rank"+str(r_new)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(teetank_ens)+"_SHREDens" + str(SHRED_ens) +".png"
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -1468,7 +1443,7 @@ def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane
 
 
         print("getting test images")
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_eta, X_vel, teetank_ens, teetank_case, r, r_new, 
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_eta, X_vel, teetank_ens, ex_case, r, r_new, 
                                                             SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
         del u_fluc2
         print("test images extracted")
@@ -1504,11 +1479,10 @@ def plot_SHRED_comparison_Tee(r_new, teetank_case, teetank_ens, SHRED_ens, plane
         # plt.tight_layout()
         #plt.show()
 
-        filename = adr_loc_3 + "Teetank_compare_recon_u_rank"+str(r_new)+ "_" +teetank_case +"_"+plane +  "_tee_ens_"+str(teetank_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+        filename = adr_loc_3 + "Teetank_compare_recon_u_rank"+str(r_new)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(teetank_ens)+"_SHREDens" + str(SHRED_ens) +".png"
         plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
         plt.show()
-        #plt.savefig(adr_loc_3 + "compare_recon_"+case + "_rank"+str(r_new)+ "_" + teetank_case + "_Tee_ens" + str(teetank_ens) + "_" + str(i+1) +".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
         plt.close()
 
 

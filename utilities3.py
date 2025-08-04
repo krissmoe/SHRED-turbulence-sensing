@@ -1067,7 +1067,70 @@ def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot
 
 
 def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r, r_new, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False, no_input_u_fluc=False):
-    '''takes in V matrix from SHRED, as well as raw data, and gives velocity fields out'''
+    """
+    Assemble ground-truth, truncated-SVD, and SHRED-reconstructed velocity
+    (or surface-elevation) snapshots for the specified DNS test indices.
+
+    Parameters
+    ----------
+    DNS_case : str
+        DNS identifier (e.g. "S1", "S2").
+    plane : int
+        Physical plane index used by the loader utilities.
+    plane_index : int
+        Block index of the velocity plane inside stacked SVD matrices
+        (0 = surface, 1 = first velocity plane, …).
+    u_fluc : ndarray
+        Full-rank fluctuating field (`shape = (ny, nx, nt)`).
+        Ignored if `no_input_u_fluc=True`.
+    V_tot_recons : ndarray
+        Right-singular-vector block returned by SHRED
+        (`shape = (nt, n_modes_total)`).
+    test_indices : ndarray
+        Indices of test snapshots in *original* time base.
+    r : int
+        Baseline SVD rank for loading SVD matrices (usually 1000 for DNS).
+    r_new : int
+        Truncation rank).
+    num_sensors : int
+        Number of surface sensors prepended to the V–matrix.
+    U_tot_red, S_tot_red, V_tot_red : ndarrays, optional
+        Pre-loaded truncated SVD factors.  If *None* and `open_svd=True`,
+        they are loaded on the fly via
+        :pyfunc:`utilities.open_and_reduce_SVD`.
+    open_svd : bool, default True
+        If *True*, load SVD factors from disk; otherwise use the arrays
+        provided via arguments.
+    lags : int, default 52
+        Length of the lag window used during SHRED training
+    forecast : bool, default False
+        Placeholder flag (not currently used).
+    surface : bool, default False
+        If *True*, treat the field as surface elevation rather than
+        velocity (plane index forced to zero).
+    no_input_u_fluc : bool, default False
+        If *True*, `u_fluc` is ignored and re-loaded internally.
+
+    Returns
+    -------
+    u_fluc_test : ndarray
+        Full-rank ground-truth snapshots (`shape = (ny, nx, n_test)`).
+    u_svd_test : ndarray
+        Corresponding truncated-SVD snapshots (rank ``r_new``).
+    u_recons_test : ndarray
+        SHRED-reconstructed snapshots (rank ``r_new``).
+    u_fluc : ndarray
+        The full input cube (returned for convenience, possibly re-loaded).
+
+    Notes
+    -----
+    * Snapshots are reshaped to `(ny, nx, n_test)` via
+      :pyfunc:`convert_2d_to_3d`.
+    * For surface fields, set `surface=True` so that plane indices are
+      handled correctly.
+    * Requires utility functions from `utilities` to locate DNS data and
+      compute dimensions.
+    """
     teetank_ens=None
     case=None
     shift = test_indices + lags - 1

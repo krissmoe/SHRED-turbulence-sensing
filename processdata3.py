@@ -481,7 +481,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
 
 
 #done-ish
-def SHRED_ensemble_exp(r_vals, num_sensors, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
+def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
     """
     Train SHRED on experimental data from the turbulent 'T-tank' for a single velocity plane
     plus the surface, across multiple SVD ranks and experimental ensemble seeds, then
@@ -531,7 +531,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, ens_start, ens_end, case, experiment
     case = utilities.case_name_converter(case)
     r=900 #manually set upper rank limit, i.e. length of dataset
 
-    X = utilities.get_normalized_surface_tee(case, plane, teetank_ens)
+    
     #exctract full SVD matrices for this plane (velocity plane stacked with surface)
     U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(r, experiment_ens, vel_fluc=False, variable='u', Teetank=True, teetank_case=case,  DNS_new=False, DNS_plane=None, DNS_surf=False, Tee_plane=exp_plane)
     
