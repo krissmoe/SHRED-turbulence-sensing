@@ -267,7 +267,7 @@ def open_teetank_profilometry(addr):
     return eta
 
 
-def read_teetank_plane(case='P25',depth='H390',variable='U0',surface=False):
+def read_exp_plane(case='P25',depth='H390',variable='U0',surface=False):
 
     tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
 
@@ -280,7 +280,7 @@ def read_teetank_plane(case='P25',depth='H390',variable='U0',surface=False):
 
 
 
-def read_teetank_surface(case='P25', depth='H390'):
+def read_exp_surface(case='P25', depth='H390'):
     surf_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
 
 
@@ -322,7 +322,7 @@ def get_normalized_surface_DNS(DNS_case):
 
 def get_normalized_surface_exp(exp_case, plane, tee_ens):
     exp_case = case_name_converter(exp_case)
-    eta_fluc = get_surface_teetank(exp_case, plane)
+    eta_fluc = get_surface_exp(exp_case, plane)
     eta_fluc_2d = convert_3d_to_2d(eta_fluc[:,:,:,tee_ens-1])
     Xnorm= np.max(np.abs(eta_fluc))
     X = eta_fluc_2d/Xnorm #note, this is surface velocity
@@ -347,19 +347,19 @@ def get_velocity_plane_DNS(DNS_case, plane):
     u_fluc = u - u_mean
     return u_fluc
 
-def get_velocity_plane_teetank(teetank_case, plane):
+def get_velocity_plane_exp(teetank_case, plane):
     depths = ['H395', 'H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    u = read_teetank_plane(teetank_case,depth,variable='U0',surface=False)
+    u = read_exp_plane(teetank_case,depth,variable='U0',surface=False)
     #structure of u is (ens, dimY, dimX, dimT)
     u_mean = np.nanmean(u, axis=3, keepdims=True)
     u_fluc = u - u_mean
     return u_fluc
 
-def get_surface_teetank(teetank_case, plane):
+def get_surface_exp(teetank_case, plane):
     depths = ['H395','H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    eta_fluc = read_teetank_surface(teetank_case, depth)
+    eta_fluc = read_exp_surface(teetank_case, depth)
     return eta_fluc
 
 def get_dims_DNS(DNS_case):
@@ -374,13 +374,13 @@ def get_dims_DNS(DNS_case):
     return dimX, dimY, dimT
 
 
-def get_dims_teetank_vel():
+def get_dims_exp_vel():
     dimX = 225
     dimY = 196
     dimT = 900
     return dimX, dimY, dimT
 
-def get_dims_teetank_surf(depth='H390', case='P50'):
+def get_dims_exp_surf(depth='H390', case='P50'):
     dimX = 610
     dimY = 540
     if depth=='H375' and case=='P50':
@@ -396,7 +396,7 @@ def get_mesh_DNS(DNS_case):
     XX, YY = np.meshgrid(X, Y)
     return XX, YY
 
-def get_mesh_Teetank(case='P50', depth='H390'):
+def get_mesh_exp(case='P50', depth='H390'):
     addr = 'E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\surfMesh_' + depth + '_' + case +'.mat'
     meshes = mat73.loadmat(addr)
     #print(meshes)
@@ -541,8 +541,8 @@ def save_svd_full(eta_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fal
             
         for i in range(len(planes)):
             plane_str = planes[i]
-            u = read_teetank_plane(case=case,depth=plane_str,variable='U0',surface=False)
-            eta_fluc = read_teetank_surface(case=case, depth=plane_str)
+            u = read_exp_plane(case=case,depth=plane_str,variable='U0',surface=False)
+            eta_fluc = read_exp_surface(case=case, depth=plane_str)
             u_fluc = u - np.mean(u, axis=3, keepdims=True)
             del u
             u_fluc = u_fluc[ens-1]
@@ -637,7 +637,7 @@ def save_singular_values_full(DNS_case, DNS_plane):
             f.create_dataset(key, data=value)
 
 def save_singular_values_full_tee(teetank_case, ensemble, plane):
-    u_fluc = get_velocity_plane_teetank(teetank_case, plane)
+    u_fluc = get_velocity_plane_exp(teetank_case, plane)
     u_fluc = u_fluc[ensemble-1]
     print("Starting SVD")
     u_fluc=convert_3d_to_2d(u_fluc)
@@ -742,17 +742,17 @@ def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
     
 
 
-def open_SVD(r, ens, vel_fluc=False, variable='u', Teetank=False, teetank_case=None, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', Tee_plane='H390'):
+def open_SVD(r, ens, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', plane='H390'):
     '''Opens and loads file containing SVD matrices for a given velocity plane or surface elevation'''
     
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    if Teetank:
+    if exp:
         adr_loc = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank"
                 
-        svd_fname = adr_loc + "\Teetank SVD_plane_" + Tee_plane + "_ens"+ str(ens) + "_"+teetank_case + ".mat"
+        svd_fname = adr_loc + "\Teetank SVD_plane_" + plane + "_ens"+ str(ens) + "_"+experimental_case + ".mat"
         if forecast:
             print("finds filename")
-            svd_fname = adr_loc + "\Teetank_Forecast_SVD_fullplanes_" + variable + "_"+teetank_case + ".mat"
+            svd_fname = adr_loc + "\Teetank_Forecast_SVD_fullplanes_" + variable + "_"+experimental_case + ".mat"
     elif DNS_new:
         if DNS_surf:
             svd_fname = adr_loc + "\SVD_surf_"+DNS_case+"_WEinf.mat"
@@ -766,7 +766,7 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', Teetank=False, teetank_case=N
         U_tot_u = np.array(SVD['U_tot_u']) #U matrix
         S_tot_u = np.array(SVD['S_tot_u'])
         
-        if Teetank:
+        if exp:
             #for experimental data, U and S matrices are separated into
             #one set for velocity field (ending with _u)
             #another set for surface elevation (ending with _eta)
@@ -778,7 +778,7 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', Teetank=False, teetank_case=N
             u_fluc = np.array(SVD['u_fluc'])
             return U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot, u_fluc
         else:
-            if Teetank:
+            if exp:
                 
                 return U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot
             else:
@@ -786,13 +786,13 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', Teetank=False, teetank_case=N
 
 
 
-def reduce_SVD(U, S, V, levels, r_new, Tee=True, DNS_new=False, surf=False):
+def reduce_SVD(U, S, V, levels, r_new, exp=True, DNS_new=False, surf=False):
     '''Function to truncate a high-rank SVD to a lower rank SVD, as given by new rank value r_new'''
     if DNS_new:
         levels=1 
     r = V.shape[1]//levels
     
-    if not Tee:
+    if not exp:
         U_tot_new = np.zeros((U.shape[0],r_new*levels))
         S_tot_new = np.zeros(r_new*levels)
     else:
@@ -806,7 +806,7 @@ def reduce_SVD(U, S, V, levels, r_new, Tee=True, DNS_new=False, surf=False):
             S_tot_new = np.zeros(r_new)
     V_tot_new = np.zeros((V.shape[0],r_new*levels))
     for i in range(levels):
-        if not Tee:
+        if not exp:
             U_tot_new[:, i*r_new:(i+1)*r_new] = U[:, i*r:i*r+r_new]
             S_tot_new[i*r_new:(i+1)*r_new] = S[i*r:i*r + r_new]
         if surf==False:
@@ -817,7 +817,7 @@ def reduce_SVD(U, S, V, levels, r_new, Tee=True, DNS_new=False, surf=False):
             S_tot_new[0:r_new] = S[0:r_new]
         V_tot_new[:, i*r_new:(i+1)*r_new] = V[:, i*r:i*r + r_new]
 
-    if Tee:
+    if exp:
         if surf==True:
             U_tot_new[:,:r_new] = U[:, :r_new]
             S_tot_new[0:r_new] = S[0:r_new]
@@ -826,20 +826,20 @@ def reduce_SVD(U, S, V, levels, r_new, Tee=True, DNS_new=False, surf=False):
 
 
 
-def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', Teetank=True, Tee_plane='H390'):
+def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', exp=True, plane='H390'):
     '''Opens files containing SVD matrices for a given velocity plane or surface elevation, 
         and truncates the U,S,V-matrices with the specified rank truncation r_new'''
     if DNS_new:
-        U_tot_u, S_tot_u, V_tot = open_SVD(r, teetank_ens, False, 'u', Teetank, teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, DNS_case=DNS_case)
+        U_tot_u, S_tot_u, V_tot = open_SVD(r, teetank_ens, False, 'u', exp, teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, DNS_case=DNS_case)
         levels=1
     else:
         
-        U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = open_SVD(r, teetank_ens, False, 'u', Teetank,  teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, Tee_plane=Tee_plane)
+        U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = open_SVD(r, teetank_ens, False, 'u', exp,  teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, plane=plane)
         levels=2
         #extract reduced surface field
-        U_tot_eta_red, S_tot_eta_red, V_tot_red = reduce_SVD(U_tot_eta, S_tot_eta, V_tot, levels, r_new, Teetank, DNS_new, surf=True)
+        U_tot_eta_red, S_tot_eta_red, V_tot_red = reduce_SVD(U_tot_eta, S_tot_eta, V_tot, levels, r_new, exp, DNS_new, surf=True)
         
-    U_tot_u_red, S_tot_u_red, V_tot_red = reduce_SVD(U_tot_u, S_tot_u, V_tot, levels, r_new, Teetank, DNS_new, surf=False)
+    U_tot_u_red, S_tot_u_red, V_tot_red = reduce_SVD(U_tot_u, S_tot_u, V_tot, levels, r_new, exp, DNS_new, surf=False)
     
     if DNS_new:
         return U_tot_u_red, S_tot_u_red, V_tot_red
@@ -849,7 +849,7 @@ def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS
 
 
 
-def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, Tee_plane='H390', full_planes=True, forecast=False, DNS_case='RE2500'):
+def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, plane='H390', full_planes=True, forecast=False, DNS_case='RE2500'):
     '''loads V matrix for test data from SHRED runs, specified by rank value r, number of sensors (num_sensors) and the SHRED ensemble-case SHRED_ens
         returns 
         test_recons: V matrix for reconstruction 
@@ -879,7 +879,7 @@ def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=Tru
             print("must change SHRED filename for Teetank forecast")
             SHRED_fname = adr_loc + "\Teetank_FORECAST_case_"+ case + "_r" + str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + ".mat"
         else:
-            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(teetank_ens) + "_"+ case + "_" + Tee_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
+            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(teetank_ens) + "_"+ case + "_" + plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
     with h5py.File(SHRED_fname, 'r') as SHRED:
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(SHRED.keys()))
@@ -892,85 +892,9 @@ def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=Tru
 
 
 
-def get_test_imgs_SHRED_Teetank1(eta_fluc, u_fluc, teetank_ens, teetank_case,r, r_new, SHRED_ens, num_sensor, X_vel, X_eta, dimT, num_ensembles, lags=52, forecast=False):
-            
-    V_tot_recons, V_tot_svd, test_indices2 = open_SHRED(teetank_ens, teetank_case, r_new, num_sensor, SHRED_ens, forecast)
-
-    shift = test_indices2 + lags - 1
-
-    if forecast:
-        #shift indices
-        shift = shift - dimT*(num_ensembles-1)
-
-    #print("shift1: ", shift)
-    num_test_snaps = len(test_indices2)
+def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, experimental_ens, exp_case, r_new, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
             
     
-    
-    eta_fluc_test = eta_fluc[teetank_ens-1, :,:,:]
-    eta_fluc_test = eta_fluc_test[:, :, shift]
-    u_fluc_test = u_fluc[teetank_ens-1, :, :,:]
-    del u_fluc
-    del eta_fluc
-    
-    u_fluc_test = u_fluc_test[:,:, shift]
-    
-
-    if forecast:
-        U_u, S_u, U_eta, S_eta, V_tot_red= open_and_reduce_SVD(teetank_ens, teetank_case, 1000, r_new, forecast=True)
-    
-        #Extract SVD fields
-        eta_svd = U_eta@ np.diag(S_eta) @ np.transpose(V_tot_svd[:, 0+num_sensor:r_new+num_sensor])
-        #eta_svd = eta_svd[:,test_indices2 + lags - 1]
-        print("eta_svd_shape0: ", eta_svd.shape)
-        eta_svd_test = convert_2d_to_3d(eta_svd, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
-        del eta_svd
-        print("eta_svd_shape: ", eta_svd_test.shape)
-        u_svd = U_u @ np.diag(S_u) @ np.transpose(V_tot_svd[:, r_new + num_sensor:2*r_new+num_sensor])
-        #u_svd = u_svd[:,test_indices2 + lags - 1]
-        u_svd_test = convert_2d_to_3d(u_svd, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
-
-        #construct reconstruction
-        u_recons_test = U_u @ np.diag(S_u) @ np.transpose(V_tot_recons[:, r_new + num_sensor :2*r_new + num_sensor])
-        del U_u, S_u
-        u_recons_test = convert_2d_to_3d(u_recons_test, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
-
-        
-        eta_recons_test = U_eta @ np.diag(S_eta) @ np.transpose(V_tot_recons[:, 0 + num_sensor :r_new + num_sensor])
-        del U_eta, S_eta
-        eta_recons_test = convert_2d_to_3d(eta_recons_test, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
-    else:
-        #Extract SVD fields
-        
-        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new)
-        eta_svd = U_tot_eta_red @ np.diag(S_tot_eta_red) @ np.transpose(V_tot_red[:, 0:r_new])
-        eta_svd = eta_svd[:,shift]
-        eta_svd_test = convert_2d_to_3d(eta_svd, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
-        del eta_svd
-        #print("eta_svd_shape: ", eta_svd_test.shape)
-        u_svd = U_tot_u_red @ np.diag(S_tot_u_red) @ np.transpose(V_tot_red[:, r_new:2*r_new])
-        u_svd = u_svd[:,shift]
-        u_svd_test = convert_2d_to_3d(u_svd, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
-    
-        #print("u_svd: ", u_svd.shape)
-        del u_svd
-
-        #construct reconstructions
-        eta_recons_test = U_tot_eta_red @ np.diag(S_tot_eta_red) @np.transpose(V_tot_recons[:, 0 + num_sensor :r_new + num_sensor])
-        del U_tot_eta_red, S_tot_eta_red
-        eta_recons_test = convert_2d_to_3d(eta_recons_test, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
-
-        u_recons_test = U_tot_u_red @ np.diag(S_tot_u_red) @ np.transpose(V_tot_recons[:, r_new + num_sensor :2*r_new + num_sensor])
-        del U_tot_u_red, S_tot_u_red, V_tot_recons
-        u_recons_test = convert_2d_to_3d(u_recons_test, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
-
-    return eta_fluc_test, u_fluc_test, eta_recons_test, u_recons_test, eta_svd_test, u_svd_test
-
-
-
-def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, teetank_case,r, r_new, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
-            
-    #V_tot_recons, V_tot_svd, test_indices2 = open_SHRED(teetank_ens, teetank_case, r_new, num_sensor, SHRED_ens, forecast)
 
     shift = test_indices + lags - 1
 
@@ -980,23 +904,23 @@ def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot
         #shift indices
         shift = shift - dimT*(num_ensembles-1)
 
-    print("shift1: ", shift)
+    
     num_test_snaps = len(test_indices)
             
     
     if no_input_u_fluc:
         if surface:
             print("load surface")
-            eta_fluc = read_teetank_surface(case=teetank_case, depth=Tee_plane)
-            u_fluc = eta_fluc[:,:,:,teetank_ens-1]
+            eta_fluc = read_exp_surface(case=exp_case, depth=plane)
+            u_fluc = eta_fluc[:,:,:,experimental_ens-1]
         else:
-            print("load velocity field, plane " + Tee_plane)
+            print("load velocity field, plane " + plane)
             
-            u =read_teetank_plane(case=teetank_case,depth=Tee_plane,variable='U0',surface=False)
+            u =read_exp_plane(case=exp_case,depth=plane,variable='U0',surface=False)
             
             u_mean = np.nanmean(u, axis=3, keepdims=True)
             u_fluc = u - u_mean
-            u_fluc = u_fluc[teetank_ens-1]
+            u_fluc = u_fluc[experimental_ens-1]
             
 
 
@@ -1007,7 +931,7 @@ def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot
     if forecast:
         #TODO fix forecast for teetank
 
-        U_u, S_u, U_eta, S_eta, V_tot_red= open_and_reduce_SVD(teetank_ens, teetank_case, 1000, r_new, forecast=True)
+        U_u, S_u, U_eta, S_eta, V_tot_red= open_and_reduce_SVD(experimental_ens, exp_case, 1000, r_new, forecast=True)
     
         #Extract SVD fields
         eta_svd = U_eta@ np.diag(S_eta) @ np.transpose(V_tot_svd[:, 0+num_sensor:r_new+num_sensor])
@@ -1032,7 +956,7 @@ def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot
     else:
         #Extract SVD fields
         if open_svd:
-            U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, Teetank=True, Tee_plane=Tee_plane)
+            U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = open_and_reduce_SVD(experimental_ens, exp_case, 900, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True, plane=plane)
 
             if surface:
                 U_tot_red = U_tot_eta_red
@@ -1066,7 +990,7 @@ def get_test_imgs_SHRED_Teetank(Tee_plane, eta_fluc, u_fluc, V_tot_recons, V_tot
 
 
 
-def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r, r_new, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False, no_input_u_fluc=False):
+def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False, no_input_u_fluc=False):
     """
     Assemble ground-truth, truncated-SVD, and SHRED-reconstructed velocity
     (or surface-elevation) snapshots for the specified DNS test indices.
@@ -1088,8 +1012,6 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
         (`shape = (nt, n_modes_total)`).
     test_indices : ndarray
         Indices of test snapshots in *original* time base.
-    r : int
-        Baseline SVD rank for loading SVD matrices (usually 1000 for DNS).
     r_new : int
         Truncation rank).
     num_sensors : int
@@ -1148,7 +1070,7 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     u_fluc_test = u_fluc[:,:, shift]
 
     if open_svd:
-        U_tot_red, S_tot_red, V_tot_red = open_and_reduce_SVD(teetank_ens, case, r, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=surface, DNS_case=DNS_case, Teetank=False)
+        U_tot_red, S_tot_red, V_tot_red = open_and_reduce_SVD(teetank_ens, case, 1000, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=surface, DNS_case=DNS_case, exp=False)
     else:
         U_tot_red = U_tot_red[:, plane_index*r_new :(plane_index+1)*r_new]
         S_tot_red = S_tot_red[plane_index*r_new :(plane_index+1)*r_new]
@@ -1163,10 +1085,7 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     if surface:
         plane=0
         plane_index = 0
-    
-    print("U_shape: ", U_tot_red.shape)
-    print("S shape: ", S_tot_red.shape)
-    print("V shape: ", V_tot_recons.shape)
+
     u_recons_test = U_tot_red @ np.diag(S_tot_red) @ np.transpose(V_tot_recons[:, plane_index*r_new + num_sensors :(plane_index+1)*r_new + num_sensors]) 
     u_recons_test = convert_2d_to_3d(u_recons_test, dimY, dimX, num_test_snaps)
 

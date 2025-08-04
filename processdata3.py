@@ -42,7 +42,7 @@ def stack_svd_arrays(vel_planes, rank, DNS=True, DNS_case='RE2500', teetank_ens=
         #extract lowest velocity plane
         DNS_plane = vel_planes[-1]
         U_tot_red, S_tot_red, V_tot_red= utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, 
-            DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, Teetank=False)
+            DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
         
         V_tot = V_tot_red
         U_tot = U_tot_red
@@ -51,21 +51,21 @@ def stack_svd_arrays(vel_planes, rank, DNS=True, DNS_case='RE2500', teetank_ens=
         #iterate planes from lower to upper and stack their U, S, V matrices on top of each other
         for plane in range(num_planes-2,-1,-1):
             DNS_plane = vel_planes[plane]
-            U, S, V = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, Teetank=False)
+            U, S, V = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
             
             U_tot = np.hstack((U, U_tot))
             S_tot = np.hstack((S, S_tot))
             V_tot = np.hstack((V,V_tot))
         
         #extract surface elevation SVD and stack on top of the velocity U, S, V matrices
-        U_surf, S_surf, V_surf = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=None, DNS_surf=True, DNS_case=DNS_case, Teetank=False)
+        U_surf, S_surf, V_surf = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=None, DNS_surf=True, DNS_case=DNS_case, exp=False)
         U_tot = np.hstack((U_surf, U_tot))
         S_tot = np.hstack((S_surf, S_tot))
         V_tot = np.hstack((V_surf,V_tot))
 
     else:
         #not properly implemented for experimental data, but might be unnecessary here anyway
-        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=tee_forecast, DNS_new=False, DNS_plane=None, DNS_surf=False, Teetank=True)
+        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=tee_forecast, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True)
     
     return U_tot, S_tot, V_tot
 
@@ -139,7 +139,7 @@ def calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens, plane):
         PSD_vals_all = np.zeros((num_ens, len(PSD_vals)))
         for j in range(num_ens):
 
-            U, S, V = utilities.open_and_reduce_SVD(None, None, 1000, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=False, DNS_case=DNS_case, Teetank=False, Tee_plane=None)
+            U, S, V = utilities.open_and_reduce_SVD(None, None, 1000, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=False, DNS_case=DNS_case, exp=False, plane=None)
             u_svd = U @ np.diag(S) @ np.transpose(V)
             u_svd = utilities.convert_2d_to_3d(u_svd, dimX, dimY, dimT)
             u_svd = np.transpose(u_svd, (2,0,1))
@@ -237,7 +237,7 @@ def calculate_PSD_r_vals_exp(u_fluc, rank_list, case,  r, ensembles, plane):
             ensemble = ensembles[j]
             
             #get SVD matrices for velocity field
-            U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(ensemble, case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', Teetank=True, Tee_plane=plane)
+            U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(ensemble, case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', exp=True, plane=plane)
 
             u_svd = U_tot_u_red @ np.diag(S_tot_u_red) @ np.transpose(V_tot_red[:,r_new:2*r_new])
             u_svd = utilities.convert_2d_to_3d(u_svd, dimY, dimX, dimT)
@@ -533,10 +533,10 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
 
     
     #exctract full SVD matrices for this plane (velocity plane stacked with surface)
-    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(r, experiment_ens, vel_fluc=False, variable='u', Teetank=True, teetank_case=case,  DNS_new=False, DNS_plane=None, DNS_surf=False, Tee_plane=exp_plane)
+    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(r, experiment_ens, vel_fluc=False, variable='u', Teetank=True, teetank_case=case,  DNS_new=False, DNS_plane=None, DNS_surf=False, plane=exp_plane)
     
     #extract surface grid
-    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, exp_plane)
+    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_exp(case, exp_plane)
     
     #iterate SHRED ensembles p 
     for p in range(ens_start, ens_end+1):
@@ -785,7 +785,7 @@ def calculate_instantaneous_rms_profile_teetank(teetank_case, teetank_ens, SHRED
 
     tot_num_planes=4
     vel_planes = [1,2,3,4,5]
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  Tee_plane='H390', full_planes=True, forecast=False)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane='H390', full_planes=True, forecast=False)
     num_test_snaps = len(test_indices)
 
     #construct velocity fields from SVD
@@ -804,16 +804,16 @@ def calculate_instantaneous_rms_profile_teetank(teetank_case, teetank_ens, SHRED
 
 
         #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  Tee_plane=plane, full_planes=True, forecast=False)
+        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane=plane, full_planes=True, forecast=False)
         num_test_snaps = len(test_indices)
         #get SVDs correctly
         U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, 900, rank, forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, Teetank=True, Tee_plane=plane)
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
 
         #at this point, I need my SVD matrices
         eta_fluc=None
         u_fluc=None
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, teetank_case,900, rank, 
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, teetank_case,900, rank, 
                                                                                                             SHRED_ens, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
 
@@ -1096,7 +1096,6 @@ def mutual_information(hgram):
 
 
 def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True):
-    r=1000
     teetank_ens=None
     case=None
 
@@ -1149,7 +1148,7 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
             print("plane: ", plane)
             
             u_fluc=None
-            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r, r_new, 
+            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=lags, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
 
@@ -1289,15 +1288,15 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
                 print("Plane: ", plane)
                 X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, plane)
                 #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False,  Tee_plane=plane, full_planes=full_planes, forecast=forecast)
+                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False,  plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
                 #get SVDs correctly
                 U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, case, r, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, Teetank=True, Tee_plane=plane)
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
 
                 #at this point, I need my SVD matrices
                 eta_fluc=None
-                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, case,r, r_new, 
+                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, case, r_new, 
                                                                                                             ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=forecast, 
                                                                                                             surface=False,no_input_u_fluc=True)
 
@@ -1392,7 +1391,6 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
 
 
 def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True):
-    r=1000
     teetank_ens=None
     case=None
 
@@ -1438,7 +1436,7 @@ def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, S
             print("plane: ", plane)
             
             u_fluc=None
-            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r, r_new, 
+            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=lags, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
 
@@ -1528,11 +1526,11 @@ def calculate_temporal_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_se
                 print("Plane: ", plane)
                 X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, plane)
                 #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False,  Tee_plane=plane, full_planes=full_planes, forecast=forecast)
+                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False, plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
                 #get SVDs correctly
-                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, case, r, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, Teetank=True, Tee_plane=plane)
+                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
 
                 #at this point, I need my SVD matrices
                 eta_fluc=None
