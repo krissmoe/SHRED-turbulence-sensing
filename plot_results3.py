@@ -614,59 +614,114 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_r
 
 
 
-def plot_depth_dependent_error_metrics_v3(DNS_cases, teetank_cases, ranks, colors, vel_planes1, vel_planes2, vel_planes_tee, num_sensors, SHRED_ensembles1, SHRED_ensembles2, SHRED_ensembles_p25, SHRED_ensembles_p50, tee_ensembles_p25, tee_ensembles_p50, forecast=False,full_planes=True, full_planes_tee=False, z_norm=None):
-    '''main plotter of error metrics for '''
-    fig=None
-    gs=None
-    DNS_case1 = DNS_cases[0]
-    DNS_case2 = DNS_cases[1]
-    teetank_case1 = teetank_cases[0]
-    teetank_case2 = teetank_cases[1]
-    RMS_z1 = processdata.get_RMS_profile_true(DNS_case1, vel_planes1) #remember: gives only correct planes, not full
-    RMS_z2 = processdata.get_RMS_profile_true(DNS_case2, vel_planes2) #remember: gives only correct planes, not full
-    RMS_tee_z1 = processdata.get_RMS_profile_true_Tee(vel_planes_tee, teetank_case1, None, Tee_ens_avg=True)
-    RMS_tee_z2 = processdata.get_RMS_profile_true_Tee(vel_planes_tee, teetank_case2, None, Tee_ens_avg=True)
-    RMS_tee_z1 = RMS_tee_z1[1:]
-    RMS_tee_z2 = RMS_tee_z2[1:]
+def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None):
+    """
+    Build the “four-case” figure that compares depth-dependent SHRED
+    reconstruction metrics for
+
+    * DNS case S1 (`DNS_cases[0]`)
+    * DNS case S2 (`DNS_cases[1]`)
+    * Experimental case E1 (`exp_cases[0]`)
+    * Experimental case E2 (`exp_cases[1]`)
+
+
+    Parameters
+    ----------
+    DNS_cases : tuple[str, str]
+        Identifiers for the two DNS datasets, e.g. ``(S1, S2)``.
+    exp_cases : tuple[str, str]
+        Identifiers for the two experimental datasets, e.g. ``(E1, E2)``.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks used for S1, S2, E1, E2 (in that order).
+    colors : tuple[str, str, str, str]
+        Line colours for the four cases when plotting.
+    vel_planes1, vel_planes2 : list[int]
+        Velocity-plane indices used in S1 and S2 metric calculations.
+    vel_planes_exp : list[int]
+        Velocity-plane indices common to both experimental cases.
+    num_sensors : int
+        Number of surface sensors in all SHRED runs.
+    SHRED_ensembl_S1, SHRED_ensembles_S2 : list[int]
+        SHRED ensemble seeds for S1 and S2.
+    SHRED_ensembles_E1, SHRED_ensembles_E2 : list[int]
+        SHRED ensemble seeds for E1 and E2.
+    exp_ensembles_E1, exp_ensembles_E2 : list[int]
+        Teetank ensemble indices providing experimental SVDs.
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED outputs.
+    full_planes : bool, default True
+        If *True*, DNS SHRED models were trained on all planes.
+    full_planes_exp : bool, default False
+        If *True*, experimental SHRED models used all planes; otherwise
+        just ``vel_planes_exp``.
+    z_norm : {"int", "depth", None}, optional
+        Normalisation for the vertical axis: integral length scale,
+        physical depth, or *None* (raw index).
+
+    Returns
+    -------
+    None
+        Generates a Matplotlib figure (via
+        :pyfunc:`plot_error_metrics_four_cases`) but does not return data.
+
+
+    """
+
+    #get necessary profiles of RMS and depth values
+    DNS_case1 = utilities.case_name_converter(DNS_cases[0])
+    DNS_case2 = utilities.case_name_converter(DNS_cases[1])
+    exp_case1 = utilities.case_name_converter(exp_cases[0])
+    exp_case2 = utilities.case_name_converter(exp_cases[1])
+
+    
+    #RMS for DNS cases S1 and S2
+    #requires these have been calculated by 'calc_RMS_profile_true()' and stored as mat files
+    RMS_z1 = processdata.get_RMS_profile_true(DNS_case1, vel_planes_S1) #returns RMS_profile with only chosen planes
+    RMS_z2 = processdata.get_RMS_profile_true(DNS_case2, vel_planes_S2)
+
+    #RMS for experimental cases E1 and E2 
+    RMS_exp_z1 = processdata.get_RMS_profile_true_exp(vel_planes_exp, exp_case1, None, experimental_ens_avg=True)
+    RMS_exp_z2 = processdata.get_RMS_profile_true_exp(vel_planes_exp, exp_case2, None, experimental_ens_avg=True)
+    RMS_exp_z1 = RMS_exp_z1[1:]
+    RMS_exp_z2 = RMS_exp_z2[1:]
+
+    #get vertical axis
     z1 = utilities.get_zz_DNS(DNS_case1)
     z2 = utilities.get_zz_DNS(DNS_case2)
+    z_exp = utilities.get_zz_exp()
 
-    z_tee = utilities.get_zz_tee()
-
-
+    #normalize vertical axis with a length scale set by 'z_norm' (for Fig. 9 in paper: 'int' for turbulent integral length scale)
     z1 = utilities.get_normalized_z(z1, z_norm, DNS_case1)
     z2 = utilities.get_normalized_z(z2, z_norm, DNS_case2)
-    z1_tee = utilities.get_normalized_z_tee(z_tee, z_norm, teetank_case1)
-    z2_tee = utilities.get_normalized_z_tee(z_tee, z_norm, teetank_case2)
-    z1_tee = z1_tee[1:]
-    z2_tee = z2_tee[1:]
+    z1_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case1)
+    z2_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case2)
+    z1_exp = z1_exp[1:]
+    z2_exp = z2_exp[1:]
 
+
+    #exctract ensemble-averaged error metrics
     RMS_recons_avg_1, RMS_true_avg, mse_avg_1, ssim_avg_1, psnr_avg_1, psd_avg_1, std_RMS_recons_1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case1,
-        ranks[0], vel_planes1, num_sensors, SHRED_ensembles1, forecast=forecast, full_planes=full_planes)
+        ranks[0], vel_planes_S1, num_sensors, SHRED_ensembles_S1, forecast=forecast, full_planes=full_planes)
     
     RMS_recons_avg_2, RMS_true_avg, mse_avg_2, ssim_avg_2, psnr_avg_2, psd_avg_2, std_RMS_recons_2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case2,
-        ranks[1], vel_planes2, num_sensors, SHRED_ensembles2, forecast=forecast, full_planes=full_planes)
+        ranks[1], vel_planes_S2, num_sensors, SHRED_ensembles_S2, forecast=forecast, full_planes=full_planes)
     
 
-    #must fix this part about what case to pick from
-    RMS_recons_avg_tee1, RMS_true_avg_tee1, mse_avg_tee1, ssim_avg_tee1, psnr_avg_tee1, psd_avg_tee1, std_RMS_recons_tee1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_Tee(teetank_case1, 
-        ranks[2], vel_planes_tee, num_sensors, SHRED_ensembles_p25, tee_ensembles_p25, lags=52, forecast=False, add_surface=False, full_planes=full_planes_tee, new_naming=True)
+    #extract ensemble-avg error metrics from experiments
+    RMS_recons_avg_exp1, RMS_true_avg_exp1, mse_avg_exp1, ssim_avg_exp1, psnr_avg_exp1, psd_avg_exp1, std_RMS_recons_exp1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case1, 
+        ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, lags=52, forecast=False, full_planes=full_planes_exp)
 
-    RMS_recons_avg_tee2, RMS_true_avg_tee2, mse_avg_tee2, ssim_avg_tee2, psnr_avg_tee2, psd_avg_tee2, std_RMS_recons_tee2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_Tee(teetank_case2, 
-        ranks[3], vel_planes_tee, num_sensors, SHRED_ensembles_p50, tee_ensembles_p50, lags=52, forecast=False, add_surface=False, full_planes=full_planes_tee, new_naming=True)
+    RMS_recons_avg_exp2, RMS_true_avg_exp2, mse_avg_exp2, ssim_avg_exp2, psnr_avg_exp2, psd_avg_exp2, std_RMS_recons_exp2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
+        ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, lags=52, forecast=False, full_planes=full_planes_exp)
 
-    std_RMS_recons_tee1=(1/np.sqrt(len(tee_ensembles_p25)))*std_RMS_recons_tee1 # np.zeros(5)
-    std_RMS_recons_tee2=(1/np.sqrt(len(tee_ensembles_p50)))*std_RMS_recons_tee2
-    #RMS_recons_avg_tee1= np.zeros(5)
-    #mse_avg_tee1=None
-    #ssim_avg_tee1=None
-    #psnr_avg_tee1=None
-    #psd_avg_tee1=None
-    #TODO: Fix this function to include teetank points
-    plot_error_metrics_two_cases(DNS_case1, DNS_case2, teetank_case1, teetank_case2, None, colors,
-    z1, z2, z1_tee, z2_tee, RMS_z1, RMS_z2, RMS_tee_z1, RMS_tee_z2, RMS_recons_avg_1, RMS_recons_avg_2, RMS_recons_avg_tee1, RMS_recons_avg_tee2, 
-    std_RMS_recons_1, std_RMS_recons_2, std_RMS_recons_tee1, std_RMS_recons_tee2, mse_avg_1, mse_avg_2, mse_avg_tee1, mse_avg_tee2, psd_avg_1, psd_avg_2, psd_avg_tee1, psd_avg_tee2, 
-    ssim_avg_1, ssim_avg_2, ssim_avg_tee1, ssim_avg_tee2, psnr_avg_1, psnr_avg_2, psnr_avg_tee1, psnr_avg_tee2, fig=None, gs=None, z_norm=z_norm)
+    std_RMS_recons_exp1=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp1 # np.zeros(5)
+    std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2
+
+    #the plotter for all four cases S1, S2, E1, E2, all together
+    plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, None, colors,
+    z1, z2, z1_exp, z2_exp, RMS_z1, RMS_z2, RMS_exp_z1, RMS_exp_z2, RMS_recons_avg_1, RMS_recons_avg_2, RMS_recons_avg_exp1, RMS_recons_avg_exp2, 
+    std_RMS_recons_1, std_RMS_recons_2, std_RMS_recons_exp1, std_RMS_recons_exp2, mse_avg_1, mse_avg_2, mse_avg_exp1, mse_avg_exp2, psd_avg_1, psd_avg_2, psd_avg_exp1, psd_avg_exp2, 
+    ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm)
 
 
         
@@ -807,14 +862,12 @@ def plot_error_metrics_per_case(DNS_case, k_index, color_curve,
     return fig, gs
 
 
-def plot_error_metrics_two_cases(DNS_case1, DNS_case2, teetank_case1, teetank_case2, k_index, colors,
+def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_case2, k_index, colors,
     depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
     std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
     ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None
 ):
-    #TODO: Make plots here to error plots, remove mid panels
-    #also make another function that calculates the ensembled averages and std_values
-    #also a function to extract the right z values in z axis given a plane
+
     """
     Plots depth-dependent error metrics in an 8-panel layout.
 
@@ -1125,7 +1178,7 @@ def plot_instantaneous_RMS(DNS_cases, teetank_ens,  SHRED_ens_DNS, SHRED_ens_tee
     rms_gt_p25 = rms_gt_p25[:, snap_indices_tee]
     rms_recons_p25 = rms_recons_p25[:,snap_indices_tee]
 
-    print(rms_recons_p25)
+    
 
     rms_gt_p50= rms_gt_p50[:,snap_indices_tee]
     rms_recons_p50 = rms_recons_p50[:,snap_indices_tee]

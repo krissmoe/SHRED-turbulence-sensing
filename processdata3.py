@@ -1639,7 +1639,7 @@ def calculate_temporal_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_se
 
 
 
-def get_ensemble_avg_error_metrics(DNS_case,r_new, vel_planes, num_sensors, SHRED_ensembles, forecast=False, full_planes=True, new_naming=True):
+def get_ensemble_avg_error_metrics(DNS_case,r_new, vel_planes, num_sensors, SHRED_ensembles, forecast=False, full_planes=True):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
@@ -1677,13 +1677,12 @@ def get_ensemble_avg_error_metrics(DNS_case,r_new, vel_planes, num_sensors, SHRE
             fcast ="_forecast_"
         else:
             fcast ="_"
-        if new_naming:
-            if DNS_case=='RE2500': 
-                err_fname = adr_loc + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
-            else:
-                err_fname = adr_loc + "_RE1000" + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+
+        if DNS_case=='RE2500': 
+            err_fname = adr_loc + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
         else:
-            err_fname = adr_loc + fcast +"ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = adr_loc + "_RE1000" + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+
         
         with h5py.File(err_fname, 'r') as err_dict:
             # List all datasets in the file
@@ -1719,12 +1718,12 @@ def get_ensemble_avg_error_metrics(DNS_case,r_new, vel_planes, num_sensors, SHRE
 
 
 
-def get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sensors, SHRED_ensembles, Tee_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=False):
+def get_ensemble_avg_error_metrics_exp(teetank_case, r_new, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, lags=52, forecast=False, full_planes=True):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
     num_SHRED_ens = len(SHRED_ensembles)
-    num_teetank_ens = len(Tee_ensembles)
+    num_teetank_ens = len(exp_ensembles)
 
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\err_metrics_TEE"
 
@@ -1737,7 +1736,7 @@ def get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sens
     
     
     for i in range(num_teetank_ens):
-        tee_ens = Tee_ensembles[i]
+        experimental_ens = exp_ensembles[i]
 
         for j in range(num_SHRED_ens):
             SHRED_ens = SHRED_ensembles[j]
@@ -1755,10 +1754,9 @@ def get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sens
                 fcast ="_forecast_"
             else:
                 fcast ="_"
-            if new_naming:
-                err_fname = adr_loc + fcast + teetank_case + "_r"+str(r_new)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(tee_ens) + plane_string +  ".mat"
-            else:
-                err_fname = adr_loc + fcast + teetank_case +  "_ens"+ str(tee_ens)+ plane_string +  ".mat"
+
+            err_fname = adr_loc + fcast + teetank_case + "_r"+str(r_new)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat"
+
         
             with h5py.File(err_fname, 'r') as err_dict:
                 # List all datasets in the file
@@ -1812,6 +1810,7 @@ def get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sens
 
 def calc_RMS_profile_true(DNS_case, vel_planes, dimT):
     '''calculates rms time series for all velocity planes'''
+    DNS_case = utilities.case_name_converter(DNS_case)
     rms_time = np.zeros((len(vel_planes),dimT))
     print("start")
     for i in range(len(vel_planes)):
@@ -1840,6 +1839,7 @@ def calc_RMS_profile_true(DNS_case, vel_planes, dimT):
 def get_RMS_profile_true(DNS_case, vel_planes):
     '''function to load the vertical profile of the planar RMS velocities (which is calculated once per case)'''
     
+
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     
     if DNS_case=='RE2500':
@@ -1858,9 +1858,11 @@ def get_RMS_profile_true(DNS_case, vel_planes):
 
 
 
-def calc_RMS_profile_true_Tee(vel_planes, dimT, Teetank_case, num_teetank_ens):
+def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_exp_ens):
+    '''num_exp_ens: number of experimental ensembles to load'''
+    case = utilities.case_name_converter(case)
 
-    rms_time = np.zeros((num_teetank_ens, len(vel_planes), dimT))
+    rms_time = np.zeros((num_exp_ens, len(vel_planes), dimT))
 
     for i in range(len(vel_planes)):
                         
@@ -1868,10 +1870,10 @@ def calc_RMS_profile_true_Tee(vel_planes, dimT, Teetank_case, num_teetank_ens):
         plane = planes[vel_planes[i]-1]
 
 
-        u = utilities.read_teetank_plane(case=Teetank_case,depth=plane,variable='U0',surface=False)
+        u = utilities.read_exp_plane(case=case,depth=plane,variable='U0',surface=False)
         u = u - np.mean(u, axis=3, keepdims=True)
 
-        for j in range(num_teetank_ens):
+        for j in range(num_exp_ens):
             u_fluc = u[j]
             u_fluc_2d = utilities.convert_3d_to_2d(u_fluc)
             rms_time[j, i,:] = utilities.RMS_plane(u_fluc_2d)
@@ -1880,7 +1882,7 @@ def calc_RMS_profile_true_Tee(vel_planes, dimT, Teetank_case, num_teetank_ens):
     }
 
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\rms_z_true_Tee_" + Teetank_case +".mat"
+    rms_fname = adr_loc + "\\rms_z_true_Tee_" + case +".mat"
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
             f.create_dataset(key, data=value)
@@ -1888,18 +1890,18 @@ def calc_RMS_profile_true_Tee(vel_planes, dimT, Teetank_case, num_teetank_ens):
         
 
 
-def get_RMS_profile_true_Tee(vel_planes, Teetank_case, Tee_ens, Tee_ens_avg=False):
+def get_RMS_profile_true_exp(vel_planes, case, experimental_ens, experimental_ens_avg=False):
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\rms_z_true_Tee_" + Teetank_case +".mat"
+    rms_fname = adr_loc + "\\rms_z_true_Tee_" + case +".mat"
 
     with h5py.File(rms_fname, 'r') as rms_dict:
         RMS_time = np.array(rms_dict['rms_z'])
 
     RMS_z_full = np.mean(RMS_time,axis=2)
-    if Tee_ens_avg:
+    if experimental_ens_avg:
         RMS_z_full = np.mean(RMS_z_full, axis=0)
     else:
-        RMS_z_full = RMS_z_full[Tee_ens-1]
+        RMS_z_full = RMS_z_full[experimental_ens-1]
     return RMS_z_full
 
 
@@ -1945,7 +1947,7 @@ def calc_avg_error(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, f
 
 
 
-def calc_avg_error_tee(teetank_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, Tee_ensembles, forecast=False, add_surface=False, full_planes=False,
+def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, exp_ensembles, forecast=False, add_surface=False, full_planes=False,
     new_naming=True, r_analysis=True):
     mse_list = np.zeros(len(r_vals))
     ssim_list = np.zeros(len(r_vals))
@@ -1973,7 +1975,7 @@ def calc_avg_error_tee(teetank_case, r_vals, vel_planes, sensor_vals, SHRED_ense
 
 
         r_new = r_vals[i]
-        RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= get_ensemble_avg_error_metrics_Tee(teetank_case, r_new, vel_planes, num_sensors, SHRED_ensembles, Tee_ensembles, 52, forecast, add_surface, full_planes=True, new_naming=True)
+        RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= get_ensemble_avg_error_metrics_exp(case, r_new, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, 52, forecast, add_surface, full_planes=True, new_naming=True)
         
         mse_list[i] = np.mean(mse_avg)
         ssim_list[i] = np.mean(ssim_avg)

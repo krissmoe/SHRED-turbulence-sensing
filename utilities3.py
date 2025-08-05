@@ -262,9 +262,9 @@ def open_teetank_profilometry(addr):
         print(temp)
     # Reshape the data into the desired 4D shape
     surf_data = temp.reshape(tuple(matsize.astype(int)))
-    eta = surf_data.transpose(3, 2, 1, 0)
+    surf = surf_data.transpose(3, 2, 1, 0)
 
-    return eta
+    return surf
 
 
 def read_exp_plane(case='P25',depth='H390',variable='U0',surface=False):
@@ -300,32 +300,32 @@ def get_surface(DNS_case):
         fname = "E:\\Users\krissmoe\Documents\PhD data storage\Re1000_WEinf\\surf_elev.mat"
     data = mat73.loadmat(fname)
     if DNS_case=='RE2500':
-        eta_full = data['surfElev']
-        eta_full = np.transpose(eta_full, (1, 2, 0))
+        surf_full = data['surfElev']
+        surf_full = np.transpose(surf_full, (1, 2, 0))
     else:
-        eta_full = data['surf_elev']
-    eta_mean = np.nanmean(eta_full, axis=2, keepdims=True)
+        surf_full = data['surf_elev']
+    surf_mean = np.nanmean(surf_full, axis=2, keepdims=True)
 
-    eta_fluc = eta_full - eta_mean
-    return eta_fluc
+    surf_fluc = surf_full - surf_mean
+    return surf_fluc
 
 
 
 def get_normalized_surface_DNS(DNS_case):
-    eta_fluc = get_surface(DNS_case)
-    eta_fluc_2d = convert_3d_to_2d(eta_fluc)
-    Xnorm= np.max(np.abs(eta_fluc))
-    X = eta_fluc_2d/Xnorm #note, this is surface velocity
+    surf_fluc = get_surface(DNS_case)
+    surf_fluc_2d = convert_3d_to_2d(surf_fluc)
+    Xnorm= np.max(np.abs(surf_fluc))
+    X = surf_fluc_2d/Xnorm #note, this is surface velocity
     print(X.shape)
     #n2 = (X).shape[0]
     return X
 
-def get_normalized_surface_exp(exp_case, plane, tee_ens):
+def get_normalized_surface_exp(exp_case, plane, experimental_ens):
     exp_case = case_name_converter(exp_case)
-    eta_fluc = get_surface_exp(exp_case, plane)
-    eta_fluc_2d = convert_3d_to_2d(eta_fluc[:,:,:,tee_ens-1])
-    Xnorm= np.max(np.abs(eta_fluc))
-    X = eta_fluc_2d/Xnorm #note, this is surface velocity
+    surf_fluc = get_surface_exp(exp_case, plane)
+    surf_fluc_2d = convert_3d_to_2d(surf_fluc[:,:,:,experimental_ens-1])
+    Xnorm= np.max(np.abs(surf_fluc))
+    X = surf_fluc_2d/Xnorm #note, this is surface velocity
     print(X.shape)
     #n2 = (X).shape[0]
     return X
@@ -400,8 +400,8 @@ def get_mesh_exp(case='P50', depth='H390'):
     addr = 'E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\surfMesh_' + depth + '_' + case +'.mat'
     meshes = mat73.loadmat(addr)
     #print(meshes)
-    X_eta = meshes['xMesh']
-    Y_eta = meshes['yMesh']
+    X_surf = meshes['xMesh']
+    Y_surf = meshes['yMesh']
     #X_vel = meshes['vMesh']['x']
     #Y_vel = meshes['vMesh']['y']
     dim_vel_X = 196
@@ -410,7 +410,7 @@ def get_mesh_exp(case='P50', depth='H390'):
     Y = np.arange(0,dim_vel_Y)
     X_vel, Y_vel = np.meshgrid(X,Y)
 
-    return X_eta, Y_eta, X_vel, Y_vel
+    return X_surf, Y_surf, X_vel, Y_vel
 
 
 
@@ -425,11 +425,11 @@ def get_zz_DNS(DNS_case):
     zz = data['zz'][:,0]
 
     z = 1 -zz
-    print(z)
+
     z = -z*5*np.pi
     return z
 
-def get_zz_tee():
+def get_zz_exp():
     z1 = np.array([-0.5, -1.0, -2.5, -5.0, -10.0])
     return z1
 
@@ -477,7 +477,7 @@ def get_normalized_z(z, z_norm, DNS_case):
     
     return z
 
-def get_normalized_z_tee(z, z_norm, teetank_case):
+def get_normalized_z_exp(z, z_norm, exp_case):
     '''takes in a z axis (1D array)
         and z_norm argument,
         and normalizes the axis wrt. a length scale
@@ -489,19 +489,19 @@ def get_normalized_z_tee(z, z_norm, teetank_case):
     #load file with scales:
     #tscales_fname = "E:\\Users\krissmoe\Documents\PhD data storage\SHRED DNS Backup\\TurbScales_" + DNS_case + ".mat"
     #TurbScales = sp.io.loadmat(tscales_fname)
-    if teetank_case=='P25':
+    if exp_case=='P25':
 
         L_int = 5.1 #cm
         L_visc = None
         L_taylor = None
-    elif teetank_case=='P50':
+    elif exp_case=='P50':
         L_int = 6.8 #cm
         L_visc = None
         L_taylor = None
     
     if z_norm=='taylor':
         z = z/L_taylor
-        print("NO TEETANK TAYLOR BY NOW!")
+        print("NO T-Tank TAYLOR YET!")
     elif z_norm=='int':
         z = z/L_int
     elif z_norm=='mixed':
@@ -511,7 +511,7 @@ def get_normalized_z_tee(z, z_norm, teetank_case):
 
 
 
-def save_svd_full(eta_fluc, u_fluc, ens, case, variable, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', new_teetank=False):
+def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', new_teetank=False):
     '''calculates SVD of variable for one ensemble cases, and stack them in U S V'''
     '''assume data_2d is of format (ens, dimx*dimy, dimT)'''
 
@@ -521,9 +521,9 @@ def save_svd_full(eta_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fal
         if DNS_surf:
             del u_fluc
             #assume eta_fluc is the 2d version
-            U, S, VT_u = np.linalg.svd(eta_fluc[:,:],full_matrices=False)
+            U, S, VT_u = np.linalg.svd(surf_fluc[:,:],full_matrices=False)
         else:
-            del eta_fluc
+            del surf_fluc
             U, S, VT_u = np.linalg.svd(u_fluc[:,:],full_matrices=False)
         #we only store r=1000 modes
         U_tot_u = U[:, :1000]
@@ -542,13 +542,13 @@ def save_svd_full(eta_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fal
         for i in range(len(planes)):
             plane_str = planes[i]
             u = read_exp_plane(case=case,depth=plane_str,variable='U0',surface=False)
-            eta_fluc = read_exp_surface(case=case, depth=plane_str)
+            surf_fluc = read_exp_surface(case=case, depth=plane_str)
             u_fluc = u - np.mean(u, axis=3, keepdims=True)
             del u
             u_fluc = u_fluc[ens-1]
             u_fluc = convert_3d_to_2d(u_fluc)
-            eta_fluc = eta_fluc[:,:,:,ens-1]
-            eta_fluc = convert_3d_to_2d(eta_fluc)
+            surf_fluc = surf_fluc[:,:,:,ens-1]
+            surf_fluc = convert_3d_to_2d(surf_fluc)
 
 
             #Stack surface elevation on top of one plane at a time!
@@ -560,7 +560,7 @@ def save_svd_full(eta_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fal
             S_tot_u = S
             V_tot = np.transpose(VT)
         
-            U, S, VT = np.linalg.svd(eta_fluc[:,:],full_matrices=False)
+            U, S, VT = np.linalg.svd(surf_fluc[:,:],full_matrices=False)
             U_tot_eta = U
             S_tot_eta = S
             V_tot = np.hstack((np.transpose(VT),V_tot))
@@ -636,7 +636,7 @@ def save_singular_values_full(DNS_case, DNS_plane):
         for key, value in S_dict.items():
             f.create_dataset(key, data=value)
 
-def save_singular_values_full_tee(teetank_case, ensemble, plane):
+def save_singular_values_full_exp(teetank_case, ensemble, plane):
     u_fluc = get_velocity_plane_exp(teetank_case, plane)
     u_fluc = u_fluc[ensemble-1]
     print("Starting SVD")
@@ -663,7 +663,7 @@ def get_singular_values_full(DNS_case, DNS_plane):
 
     return S
 
-def get_singular_values_full_tee(teetank_case, ensemble, plane):
+def get_singular_values_full_exp(teetank_case, ensemble, plane):
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     S_fname = adr_loc + "S_fullrank_teetank_"+ teetank_case + "_ens" + str(ensemble) +  "_plane"+str(plane)
     with h5py.File(S_fname, 'r') as s_matrix:
@@ -688,9 +688,9 @@ def get_cumsum_svd(r_vals, total_ranks, DNS_case):
     
     return s_energy, rank_percentage
 
-def get_cumsum_svd_tee(r_vals, total_ranks, teetank_case, ensemble, plane):
+def get_cumsum_svd_exp(r_vals, total_ranks, case, ensemble, plane):
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_teetank_"+ teetank_case + "_ens" + str(ensemble) +  "_plane"+str(plane)
+    S_fname = adr_loc + "S_fullrank_teetank_"+ case + "_ens" + str(ensemble) +  "_plane"+str(plane)
     with h5py.File(S_fname, 'r') as s_matrix:
         # List all datasets in the file
         S = np.array(s_matrix['S'])
