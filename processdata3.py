@@ -29,8 +29,8 @@ class TimeSeriesDataset(torch.utils.data.Dataset):
         return self.len
 
 
-def stack_svd_arrays(vel_planes, rank, DNS=True, DNS_case='RE2500', teetank_ens=None, teetank_case=None, tee_forecast=False):
-    '''Load SVD matrices for selected planes + surface elevation
+def stack_svd_arrays_DNS(vel_planes, rank, DNS_case='RE2500', exp_ens=None, exp_case=None, exp_forecast=False):
+    '''Load SVD matrices of DNS for selected planes + surface elevation
         and stack them in the shape of
         [U1, U2, U3,...Un]
         and likewise for S and V matrices'''
@@ -38,34 +38,31 @@ def stack_svd_arrays(vel_planes, rank, DNS=True, DNS_case='RE2500', teetank_ens=
     r=1000
     num_planes = len(vel_planes)
     
-    if DNS:
-        #extract lowest velocity plane
-        DNS_plane = vel_planes[-1]
-        U_tot_red, S_tot_red, V_tot_red= utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, 
-            DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
+    
+    #extract lowest velocity plane
+    DNS_plane = vel_planes[-1]
+    U_tot_red, S_tot_red, V_tot_red= utilities.open_and_reduce_SVD(exp_ens, exp_case, r, rank, forecast=False, DNS_new=True, 
+        DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
         
-        V_tot = V_tot_red
-        U_tot = U_tot_red
-        S_tot = S_tot_red
+    V_tot = V_tot_red
+    U_tot = U_tot_red
+    S_tot = S_tot_red
 
-        #iterate planes from lower to upper and stack their U, S, V matrices on top of each other
-        for plane in range(num_planes-2,-1,-1):
-            DNS_plane = vel_planes[plane]
-            U, S, V = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
-            
-            U_tot = np.hstack((U, U_tot))
-            S_tot = np.hstack((S, S_tot))
-            V_tot = np.hstack((V,V_tot))
+    #iterate planes from lower to upper and stack their U, S, V matrices on top of each other
+    for plane in range(num_planes-2,-1,-1):
+        DNS_plane = vel_planes[plane]
+        U, S, V = utilities.open_and_reduce_SVD(exp_ens, exp_case, r, rank, forecast=False, DNS_new=True, DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
         
-        #extract surface elevation SVD and stack on top of the velocity U, S, V matrices
-        U_surf, S_surf, V_surf = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=False, DNS_new=True, DNS_plane=None, DNS_surf=True, DNS_case=DNS_case, exp=False)
-        U_tot = np.hstack((U_surf, U_tot))
-        S_tot = np.hstack((S_surf, S_tot))
-        V_tot = np.hstack((V_surf,V_tot))
+        U_tot = np.hstack((U, U_tot))
+        S_tot = np.hstack((S, S_tot))
+        V_tot = np.hstack((V,V_tot))
+        
+    #extract surface elevation SVD and stack on top of the velocity U, S, V matrices
+    U_surf, S_surf, V_surf = utilities.open_and_reduce_SVD(exp_ens, exp_case, r, rank, forecast=False, DNS_new=True, DNS_plane=None, DNS_surf=True, DNS_case=DNS_case, exp=False)
+    U_tot = np.hstack((U_surf, U_tot))
+    S_tot = np.hstack((S_surf, S_tot))
+    V_tot = np.hstack((V_surf,V_tot))
 
-    else:
-        #not properly implemented for experimental data, but might be unnecessary here anyway
-        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, r, rank, forecast=tee_forecast, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True)
     
     return U_tot, S_tot, V_tot
 
@@ -327,7 +324,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
             
             #get SVD arrays and stack horizontally
             # includes all planes, plus SVD of surface on top
-            U_tot, S_tot, V_tot = stack_svd_arrays(vel_planes, r, DNS_case=DNS_case)
+            U_tot, S_tot, V_tot = stack_svd_arrays_DNS(vel_planes, r, DNS_case=DNS_case)
             
             dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
 
@@ -737,11 +734,11 @@ def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
 
     stack_planes = np.arange(1, tot_num_planes+1)
 
-    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays(stack_planes, rank, DNS=True, DNS_case=DNS_case, teetank_ens=None, teetank_case=None, tee_forecast=False)     
+    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays_DNS(stack_planes, rank, DNS_case=DNS_case)     
 
     #open SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens=None, case=None, r=rank, num_sensors=num_sensors, SHRED_ens=SHRED_ens, plane_list=None, DNS=True, 
-                                                                     full_planes=True, forecast=False, DNS_case=DNS_case)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(exp_ens=None, case=DNS_case, r=rank, num_sensors=num_sensors, SHRED_ens=SHRED_ens, plane_list=None, DNS=True, 
+                                                                     full_planes=True, forecast=False)
 
     num_test_snaps = len(test_indices)
     #construct velocity fields from SVD
@@ -779,13 +776,13 @@ def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
     return rms_gt, rms_recons
 
 
-def calculate_instantaneous_rms_profile_teetank(teetank_case, teetank_ens, SHRED_ens, rank, num_sensors):
+def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, rank, num_sensors):
     '''compute depth-dependent RMS velocity profile without time averaging'''
     #open and stack SVD planes
 
     tot_num_planes=4
     vel_planes = [1,2,3,4,5]
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane='H390', full_planes=True, forecast=False)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane='H390', full_planes=True, forecast=False)
     num_test_snaps = len(test_indices)
 
     #construct velocity fields from SVD
@@ -800,20 +797,20 @@ def calculate_instantaneous_rms_profile_teetank(teetank_case, teetank_ens, SHRED
         plane = planes[plane_index-1]
         print("plane: ", plane)
         
-        X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(teetank_case, plane)
+        X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
 
 
         #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, teetank_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane=plane, full_planes=True, forecast=False)
+        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane=plane, full_planes=True, forecast=False)
         num_test_snaps = len(test_indices)
         #get SVDs correctly
-        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, teetank_case, 900, rank, forecast=False, DNS_new=False, DNS_plane=None,
+        U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, rank, forecast=False, DNS_new=False, DNS_plane=None,
                                                                                                                    DNS_surf=False, exp=True, plane=plane)
 
         #at this point, I need my SVD matrices
         eta_fluc=None
         u_fluc=None
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, teetank_case,900, rank, 
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, experimental_ens, case,900, rank, 
                                                                                                             SHRED_ens, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
 
@@ -1095,49 +1092,94 @@ def mutual_information(hgram):
     return np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
 
 
-def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True):
-    teetank_ens=None
-    case=None
+def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, full_planes=True):
+    """
+    Compute depth-dependent reconstruction metrics for SHRED runs on DNS
+    data and save them to `.mat` files.
 
+    Parameters
+    ----------
+    DNS_case : {"S1", "S2"}
+        DNS dataset identifier.
+    r_new : int
+        SVD truncation rank used for both SVD baseline and SHRED model.
+    vel_planes : list[int]
+        Velocity-plane indices for which to compute metrics.
+    num_sensors : int
+        Number of surface sensors present in the SHRED run (used for
+        filename bookkeeping).
+    SHRED_ensembles : list[int]
+        SHRED ensemble seeds to process.
+    lags : int, default 52
+        LSTM lag (needed for test-index
+        alignment).
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED outputs; otherwise standard
+        reconstruction mode.
+    full_planes : bool, default True
+        If *True*, SVD stacks **all** planes; if *False*, only
+        ``vel_planes``.  Controls plane indexing logic.
+
+    Returns
+    -------
+    None
+        Writes an HDF5 file per ensemble in
+        ``.../MAT_files/err_metrics/`` containing datasets:
+
+        * ``RMS_recons``  
+        * ``RMS_true``  
+        * ``MSE_z``  
+        * ``ssim``  
+        * ``psnr``  
+        * ``psd``  
+
+    Notes
+    -----
+    * Assumes SHRED outputs exist in `.mat` files produced by
+      the companion functions in this code base.
+    """
+
+    DNS_case = utilities.case_name_converter(DNS_case)
     #useful to define total number of planes per case
-    #helps for picking out correct planes if we only want to
+    #helps picking out correct planes if we only want to
     #plot some (but not all) planes
+    
     if DNS_case=='RE2500':
         tot_num_planes=76
     else:
         tot_num_planes=57
     
     #open and reduce SVD
-    print("starting stacking SVD")
+  
     if full_planes:
         stack_planes = np.arange(1, tot_num_planes+1)
     else:
         stack_planes=vel_planes 
 
-    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays(stack_planes, r_new, DNS=True, DNS_case=DNS_case, teetank_ens=None, teetank_case=None, tee_forecast=False)                                                  
-    print("end stacking SVD")
+    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays_DNS(stack_planes, r_new, DNS_case=DNS_case)                                                  
+
     #then iterate SHRED ensembles
 
-    print("start ensemble looping")
-    RMS_ensembles_recons = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    RMS_ensembles_truth = np.zeros((len(SHRED_ensembles), len(vel_planes)))
+    print("start SHRED ensemble looping")
     for i in range(len(SHRED_ensembles)):
         ensemble = SHRED_ensembles[i]
         print("ensemble: ", ensemble)
 
-        print("open SHRED: ")
-        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=True, 
-                                                                     full_planes=full_planes, forecast=forecast, DNS_case=DNS_case)
+    
+        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, ensemble, vel_planes, DNS=True, 
+                                                                     full_planes=full_planes, forecast=forecast)
         
         num_test_snaps = len(test_indices)
         RMS_recons = np.zeros(len(vel_planes))
         RMS_true = np.zeros((len(vel_planes)))
 
+        #initialize vertical profile error metric arrays
         MSE_z = np.zeros(len(vel_planes))
         ssim_values = np.zeros(len(vel_planes))
         psnr_values = np.zeros(len(vel_planes))
         psd_error = np.zeros(len(vel_planes))
 
+        #calculate plane-by-plane
         for j in range(len(vel_planes)):
             plane = vel_planes[j]
             if full_planes and len(vel_planes) < tot_num_planes:
@@ -1148,11 +1190,13 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
             print("plane: ", plane)
             
             u_fluc=None
+
+            #extract test snapshots for this plane
             u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=lags, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
 
-            #calculate error metrics for this plane and ensemble case
+            #calculate error metrics for this plane and SHRED ensemble case
 
             #RMS 
             u_recons = utilities.convert_3d_to_2d(u_recons_test)
@@ -1162,7 +1206,7 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
             RMS_true[j] =  utilities.get_RMS(u_truth)
 
 
-            #Mean squared error (MSE)
+            #Normalized Mean squared error (NMSE)
             print("calc MSE")
             mse = np.mean((u_truth - u_recons) ** 2, axis=(0,1))  # Mean over spatial and time dimensions
             norm_factor = np.mean(u_truth ** 2, axis=(0, 1))
@@ -1189,12 +1233,14 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
             for t in range(num_test_snaps)
             ]
             psnr_values[j] = np.mean(psnr_snapshots)  # Average over time
-            print("psnr val: ", psnr_values[j])
+            print("PSNR val: ", psnr_values[j])
 
             #PSD
             print("calc PSD")
             psd_error[j] = power_spectral_density_error_v2(u_fluc_full, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
             print("PSD error: ", psd_error[j])
+        
+        #save vertical error metric profiles in dictionary
         err_dict = {
             'RMS_recons' : RMS_recons,
             'RMS_true' : RMS_true,
@@ -1216,57 +1262,70 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
             fcast ="_forecast_"
         else:
             fcast="_"
-        if new_naming:
-            if DNS_case=='RE2500': 
-                err_fname = adr_loc + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
-            else:
-                err_fname = adr_loc + "_RE1000" + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+       
+        if DNS_case=='RE2500': 
+            err_fname = adr_loc + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
         else:
-            err_fname = adr_loc + fcast + "ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = adr_loc + "_RE1000" + fcast +"r"+str(r_new)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+  
         with h5py.File(err_fname, 'w') as f:
             for key, value in err_dict.items():
                 f.create_dataset(key, data=value)
         print("saved successfully!")
 
-    #take the ensemble avg
-    #RMS_z_recons = np.mean(RMS_ensembles_recons, axis=0)
-    #RMS_z_truth = np.mean(RMS_ensembles_truth, axis=0)
-
-    #std_RMS_z_recons = np.std(RMS_ensembles_recons, axis=0)
-    #std_RMS_z_truth = np.std(RMS_ensembles_truth, axis=0)
-
-    print("DONE!")
 
 
-    
-    #return RMS_z_recons, RMS_z_truth, std_RMS_z_recons, std_RMS_z_truth
+def calculate_error_metrics_exp(case, r_new, vel_planes, num_sensors, SHRED_ensembles, experimental_ensembles, lags=52, forecast=False, full_planes=True):
+    """
+    Compute vertical profiles of reconstruction-error metrics for SHRED
+    runs on Teetank experimental data and save the results to `.mat` files.
 
+    Parameters
+    ----------
+    case : {"E1", "E2"}
+        Teetank case identifier 
+    r_new : int
+        SVD truncation rank used for the comparison.
+    vel_planes : list[int]
+        List of velocity planes (1-based: 1 = H395, …) to evaluate.
+    num_sensors : int
+        Number of surface sensors used in the SHRED model.
+    SHRED_ensembles : list[int]
+        SHRED ensemble seeds to process.
+    experimental_ensembles : list[int]
+        Teetank ensemble indices providing the underlying SVD data.
+    lags : int, default 52
+        Length of LSTM input sequences (needed for test-index alignment).
+    forecast : bool, default False
+        If *True*, load SHRED forecast outputs; otherwise reconstruction.
+    full_planes : bool, default True
+        If *True*, metrics are computed for all available planes; if
+        *False*, only those in ``vel_planes`` (affects file naming).
 
+    Returns
+    -------
+    None
+        Writes one HDF5 (`.mat`) file per SHRED ensemble containing the
+        following datasets:
 
-def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SHRED_ensembles, Tee_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=False):
-    '''error vertically for one Tee ensemble case and one SHRED ensemble case at a time'''
-    '''Tee_ensembles: list is ensemble indices
-    SHRED_ensembles: list of SHRED ensemble indices'''
-    r=900
-    #teetank_ens=None
-    #case=None
+        * ``RMS_recons``  
+        * ``RMS_true``  
+        * ``MSE_z``  
+        * ``ssim``  
+        * ``psnr``  
+        * ``psd``  
 
+    """
 
- 
+    case = utilities.case_name_converter(case)
 
     print("start ensemble looping")
-    #TODO! Add Teetank ensembles as an extra dimension to save!
-    RMS_ensembles_recons = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    RMS_ensembles_truth = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    
-    for k in range(len(Tee_ensembles)):
+
+    for k in range(len(experimental_ensembles)):
         
-        teetank_ens = Tee_ensembles[k]
-        #open and reduce SVD matrices for the given Teetank ensemble
-        
-        RMS_ensembles_recons = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-        RMS_ensembles_truth = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-        #continue below when I've fixed the above issue
+        experimental_ens = experimental_ensembles[k]
+        #open and reduce SVD matrices for the given experimental ensemble
+
         for i in range(len(SHRED_ensembles)):
             ensemble = SHRED_ensembles[i]
             print("ensemble: ", ensemble)
@@ -1286,18 +1345,19 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
                 planes = ['H395', 'H390', 'H375', 'H350', 'H300']
                 plane = planes[vel_planes[j]-1]
                 print("Plane: ", plane)
-                X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, plane)
+                X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_expk(case, plane)
                 #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False,  plane=plane, full_planes=full_planes, forecast=forecast)
+                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False,  plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
+                
                 #get SVDs correctly
-                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, case, r, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
+                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
                                                                                                                    DNS_surf=False, exp=True, plane=plane)
 
-                #at this point, I need my SVD matrices
-                eta_fluc=None
-                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, case, r_new, 
-                                                                                                            ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=forecast, 
+                #Extract test snapshots from SHRED run
+            
+                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, None, None, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, experimental_ens, case, r_new, 
+                                                                                                            ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=lags, forecast=forecast, 
                                                                                                             surface=False,no_input_u_fluc=True)
 
                 #calculate error metrics for this plane and ensemble case
@@ -1310,7 +1370,7 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
                 RMS_true[j] =  utilities.get_RMS(u_truth)
 
 
-                #Mean squared error (MSE)
+                #Normalized Mean squared error (NMSE)
                 print("calc MSE")
                 mse = np.mean((u_truth - u_recons) ** 2, axis=(0,1))  # Mean over spatial and time dimensions
                 norm_factor = np.mean(u_truth ** 2, axis=(0, 1))
@@ -1337,12 +1397,14 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
                 for t in range(num_test_snaps)
                 ]
                 psnr_values[j] = np.mean(psnr_snapshots)  # Average over time
-                print("psnr val: ", psnr_values[j])
+                print("PSNR val: ", psnr_values[j])
 
                 #PSD
                 print("calc PSD")
                 psd_error[j] = power_spectral_density_error_v2(u_fluc_full, u_recons_test, 3, DNS=False, DNS_case=None)
-        
+                print("PSD val: ", psd_error[j])
+
+            #save error metrics in dictionary
             err_dict = {
                 'RMS_recons' : RMS_recons,
                 'RMS_true' : RMS_true,
@@ -1365,34 +1427,21 @@ def calculate_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_sensors, SH
                 fcast ="_forecast_"
             else:
                 fcast="_"
-            if new_naming: 
-                err_fname = adr_loc + fcast +case+"_r"+str(r_new)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(Tee_ensembles[k]) + plane_string +  ".mat"
-            else:
-                err_fname = adr_loc + fcast + case + "_ens"+ str(ensemble)+ plane_string +  ".mat"
+            
+            err_fname = adr_loc + fcast +case+"_r"+str(r_new)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(experimental_ensembles[k]) + plane_string +  ".mat"
+            
             with h5py.File(err_fname, 'w') as f:
                 for key, value in err_dict.items():
                     f.create_dataset(key, data=value)
             print("saved successfully!")
 
-    #take the ensemble avg
-    #RMS_z_recons = np.mean(RMS_ensembles_recons, axis=0)
-    #RMS_z_truth = np.mean(RMS_ensembles_truth, axis=0)
 
-    #std_RMS_z_recons = np.std(RMS_ensembles_recons, axis=0)
-    #std_RMS_z_truth = np.std(RMS_ensembles_truth, axis=0)
-
-    print("DONE!")
-
-
-    
-    #return RMS_z_recons, RMS_z_truth, std_RMS_z_recons, std_RMS_z_truth
 
 
 
 
 def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True):
-    teetank_ens=None
-    case=None
+
 
     #useful to define total number of planes per case
     #helps for picking out correct planes if we only want to
@@ -1405,7 +1454,7 @@ def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, S
 
     stack_planes=vel_planes 
 
-    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays(stack_planes, r_new, DNS=True, DNS_case=DNS_case, teetank_ens=None, teetank_case=None, tee_forecast=False)                                                  
+    U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays_DNS(stack_planes, r_new, DNS_case=DNS_case)                                                  
     print("end stacking SVD")
     #then iterate SHRED ensembles
 
@@ -1417,8 +1466,8 @@ def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, S
         print("ensemble: ", ensemble)
 
         print("open SHRED: ")
-        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=True, 
-                                                                     full_planes=full_planes, forecast=forecast, DNS_case=DNS_case)
+        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, ensemble, vel_planes, DNS=True, 
+                                                                     full_planes=full_planes, forecast=forecast)
         
         num_test_snaps = len(test_indices)
         RMS_recons = np.zeros(len(test_indices))
@@ -1526,15 +1575,15 @@ def calculate_temporal_error_metrics_tee(case, r_new, u_fluc, vel_planes, num_se
                 print("Plane: ", plane)
                 X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(case, plane)
                 #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(teetank_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False, plane=plane, full_planes=full_planes, forecast=forecast)
+                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False, exp_plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
                 #get SVDs correctly
-                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(teetank_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
+                U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
                                                                                                                    DNS_surf=False, exp=True, plane=plane)
 
                 #at this point, I need my SVD matrices
                 eta_fluc=None
-                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, teetank_ens, case,r, r_new, 
+                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, eta_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, experimental_ens, case, r_new, 
                                                                                                             ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=forecast, 
                                                                                                             surface=False,no_input_u_fluc=True)
 

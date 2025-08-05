@@ -339,11 +339,11 @@ def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_v
     stack_planes=[DNS_planes[0]] 
     plane = DNS_planes[0]
     integral_length_scale=utilities.get_integral_length_scale('RE1000')
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays(stack_planes, r_vals[0], DNS=True, DNS_case='RE1000', teetank_ens=None, teetank_case=None, tee_forecast=False)                                                  
+    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
     print("end stacking SVD")
     #then iterate SHRED ensembles
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, None, r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
-                                                                     full_planes=True, forecast=False, DNS_case='RE1000')
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
     u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE1000', plane, 1, None, V_tot_recons, test_indices, r_vals[0], 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
@@ -360,12 +360,12 @@ def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_v
     
     stack_planes=[DNS_planes[1]] 
     plane = DNS_planes[1]
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays(stack_planes, r_vals[1], DNS=True, DNS_case='RE2500', teetank_ens=None, teetank_case=None, tee_forecast=False)                                                  
+    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
     print("end stacking SVD")
     #then iterate SHRED ensembles
 
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, None, r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
-                                                                     full_planes=True, forecast=False, DNS_case='RE2500')
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE2500', r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
  
     u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE2500', plane, 1, None, V_tot_recons, test_indices, r_vals[1], 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
@@ -1303,7 +1303,7 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
     XX,YY = utilities.get_mesh_DNS(DNS_case)
 
     #get SHRED V matrices
-    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, None, r_new, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast, DNS_case=DNS_case)
+    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast)
 
     #get surface elevation
     all_rows = []

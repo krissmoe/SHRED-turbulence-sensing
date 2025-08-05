@@ -849,7 +849,7 @@ def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS
 
 
 
-def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, plane='H390', full_planes=True, forecast=False, DNS_case='RE2500'):
+def open_SHRED(exp_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, exp_plane='H390', full_planes=True, forecast=False):
     '''loads V matrix for test data from SHRED runs, specified by rank value r, number of sensors (num_sensors) and the SHRED ensemble-case SHRED_ens
         returns 
         test_recons: V matrix for reconstruction 
@@ -867,11 +867,11 @@ def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=Tru
             plane_string ="_full_planes"
         if forecast==False:
             SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
-            if DNS_case=='RE1000':
+            if case=='RE1000':
                 SHRED_fname = adr_loc + "\SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
         else:
             SHRED_fname = adr_loc + "\SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
-            if DNS_case=='RE1000':
+            if case=='RE1000':
                 SHRED_fname = adr_loc + "\SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
                 
     else:
@@ -879,7 +879,7 @@ def open_SHRED(teetank_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=Tru
             print("must change SHRED filename for Teetank forecast")
             SHRED_fname = adr_loc + "\Teetank_FORECAST_case_"+ case + "_r" + str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + ".mat"
         else:
-            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(teetank_ens) + "_"+ case + "_" + plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
+            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(exp_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
     with h5py.File(SHRED_fname, 'r') as SHRED:
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(SHRED.keys()))
