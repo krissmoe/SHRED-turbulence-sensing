@@ -288,8 +288,8 @@ def read_exp_surface(case='P25', depth='H390'):
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(tee.keys()))
 
-        eta_fluc = np.array(tee['eta'])
-    return eta_fluc
+        surf_fluc = np.array(tee['eta'])
+    return surf_fluc
 
 
 
@@ -359,8 +359,8 @@ def get_velocity_plane_exp(teetank_case, plane):
 def get_surface_exp(teetank_case, plane):
     depths = ['H395','H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    eta_fluc = read_exp_surface(teetank_case, depth)
-    return eta_fluc
+    surf_fluc = read_exp_surface(teetank_case, depth)
+    return surf_fluc
 
 def get_dims_DNS(DNS_case):
     if DNS_case=='RE2500':
@@ -520,7 +520,7 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
         #take in one velocity/surface plane and calculates SVD up to rank 1000
         if DNS_surf:
             del u_fluc
-            #assume eta_fluc is the 2d version
+            #assume surf_fluc is the 2d version
             U, S, VT_u = np.linalg.svd(surf_fluc[:,:],full_matrices=False)
         else:
             del surf_fluc
@@ -532,8 +532,7 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
         del S
         V_tot = np.transpose(VT_u[:1000,:])
         del VT_u
-        #U, S, VT_eta = np.linalg.svd(eta_fluc_2d[:,:],full_matrices=False)
-        #U_tot_eta= U[:, :1000]
+        
     else:
         #experimental cases
 
@@ -561,16 +560,16 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
             V_tot = np.transpose(VT)
         
             U, S, VT = np.linalg.svd(surf_fluc[:,:],full_matrices=False)
-            U_tot_eta = U
-            S_tot_eta = S
+            U_tot_surf = U
+            S_tot_surf = S
             V_tot = np.hstack((np.transpose(VT),V_tot))
             print("V_tot_dim: ", V_tot.shape)
             
             svd_dict = {
                 'U_tot_u': U_tot_u,
-                'U_tot_eta': U_tot_eta,
+                'U_tot_eta': U_tot_surf,
                 'S_tot_u': S_tot_u,
-                'S_tot_eta': S_tot_eta,
+                'S_tot_eta': S_tot_surf,
                 'V_tot': V_tot}
             adr_loc = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank"
 
@@ -599,9 +598,9 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
     elif not new_teetank:
         svd_dict = {
         'U_tot_u': U_tot_u,
-        'U_tot_eta': U_tot_eta,
+        'U_tot_eta': U_tot_surf,
         'S_tot_u': S_tot_u,
-        'S_tot_eta': S_tot_eta,
+        'S_tot_eta': S_tot_surf,
         'V_tot': V_tot}
         adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     
@@ -615,7 +614,7 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
     if DNS:
         return U_tot_u, S_tot_u, V_tot
     else:
-        return U_tot_u, U_tot_eta, S_tot_u, S_tot_eta, V_tot
+        return U_tot_u, U_tot_surf, S_tot_u, S_tot_surf, V_tot
 
 
 def save_singular_values_full(DNS_case, DNS_plane):
@@ -710,7 +709,7 @@ def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
     '''Function that calculates SVD matrices for a given
         set of DNS planes, and saves these in mat files'''
     num_planes=plane_end-plane_start
-    eta_fluc_2d = np.zeros(1)#utilities.convert_3d_to_2d(u_fluc)
+    surf_fluc_2d = np.zeros(1)#utilities.convert_3d_to_2d(u_fluc)
     ens=0
     variable='u'
     case=None
@@ -734,7 +733,7 @@ def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
 
         u_fluc = convert_3d_to_2d(u_fluc)
         print("start svd")
-        U, S, V = save_svd_full(eta_fluc_2d, u_fluc, ens, case, variable, forecast=False, DNS=True, DNS_plane=plane, DNS_case=DNS_case, DNS_surf=False)
+        U, S, V = save_svd_full(surf_fluc_2d, u_fluc, ens, case, variable, forecast=False, DNS=True, DNS_plane=plane, DNS_case=DNS_case, DNS_surf=False)
         print("U: ", U.shape)
         print("S: ", S.shape)
         print("V: ", V.shape)
@@ -771,16 +770,16 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', exp=False, experimental_case=
             #one set for velocity field (ending with _u)
             #another set for surface elevation (ending with _eta)
 
-            U_tot_eta = np.array(SVD['U_tot_eta']) 
-            S_tot_eta = np.array(SVD['S_tot_eta'])
+            U_tot_surf = np.array(SVD['U_tot_eta']) 
+            S_tot_surf = np.array(SVD['S_tot_eta'])
         V_tot = np.array(SVD['V_tot'])
         if vel_fluc:
             u_fluc = np.array(SVD['u_fluc'])
-            return U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot, u_fluc
+            return U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot, u_fluc
         else:
             if exp:
                 
-                return U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot
+                return U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot
             else:
                 return U_tot_u, S_tot_u, V_tot
 
@@ -834,10 +833,10 @@ def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS
         levels=1
     else:
         
-        U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = open_SVD(r, teetank_ens, False, 'u', exp,  teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, plane=plane)
+        U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = open_SVD(r, teetank_ens, False, 'u', exp,  teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, plane=plane)
         levels=2
         #extract reduced surface field
-        U_tot_eta_red, S_tot_eta_red, V_tot_red = reduce_SVD(U_tot_eta, S_tot_eta, V_tot, levels, r_new, exp, DNS_new, surf=True)
+        U_tot_surf_red, S_tot_surf_red, V_tot_red = reduce_SVD(U_tot_surf, S_tot_surf, V_tot, levels, r_new, exp, DNS_new, surf=True)
         
     U_tot_u_red, S_tot_u_red, V_tot_red = reduce_SVD(U_tot_u, S_tot_u, V_tot, levels, r_new, exp, DNS_new, surf=False)
     
@@ -845,7 +844,7 @@ def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS
         return U_tot_u_red, S_tot_u_red, V_tot_red
     else:
         
-        return U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red
+        return U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red
 
 
 
@@ -892,7 +891,7 @@ def open_SHRED(exp_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, e
 
 
 
-def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, experimental_ens, exp_case, r_new, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
+def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, exp_case, r_new, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
             
     
 
@@ -911,8 +910,8 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
     if no_input_u_fluc:
         if surface:
             print("load surface")
-            eta_fluc = read_exp_surface(case=exp_case, depth=plane)
-            u_fluc = eta_fluc[:,:,:,experimental_ens-1]
+            surf_fluc = read_exp_surface(case=exp_case, depth=plane)
+            u_fluc = surf_fluc[:,:,:,experimental_ens-1]
         else:
             print("load velocity field, plane " + plane)
             
@@ -931,17 +930,17 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
     if forecast:
         #TODO fix forecast for teetank
 
-        U_u, S_u, U_eta, S_eta, V_tot_red= open_and_reduce_SVD(experimental_ens, exp_case, 1000, r_new, forecast=True)
+        U_u, S_u, U_surf, S_surf, V_tot_red= open_and_reduce_SVD(experimental_ens, exp_case, 1000, r_new, forecast=True)
     
         #Extract SVD fields
-        eta_svd = U_eta@ np.diag(S_eta) @ np.transpose(V_tot_svd[:, 0+num_sensor:r_new+num_sensor])
-        #eta_svd = eta_svd[:,test_indices2 + lags - 1]
-        print("eta_svd_shape0: ", eta_svd.shape)
-        eta_svd_test = convert_2d_to_3d(eta_svd, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
-        del eta_svd
-        print("eta_svd_shape: ", eta_svd_test.shape)
+        surf_svd = U_surf@ np.diag(S_surf) @ np.transpose(V_tot_svd[:, 0+num_sensor:r_new+num_sensor])
+        
+        print("surf_svd_shape0: ", surf_svd.shape)
+        surf_svd_test = convert_2d_to_3d(surf_svd, X_surf.shape[1], X_surf.shape[0], num_test_snaps)
+        del surf_svd
+        print("surf_svd_shape: ", surf_svd_test.shape)
         u_svd = U_u @ np.diag(S_u) @ np.transpose(V_tot_svd[:, r_new + num_sensor:2*r_new+num_sensor])
-        #u_svd = u_svd[:,test_indices2 + lags - 1]
+        
         u_svd_test = convert_2d_to_3d(u_svd, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
 
         #construct reconstruction
@@ -950,25 +949,25 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
         u_recons_test = convert_2d_to_3d(u_recons_test, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
 
         
-        eta_recons_test = U_eta @ np.diag(S_eta) @ np.transpose(V_tot_recons[:, 0 + num_sensor :r_new + num_sensor])
-        del U_eta, S_eta
-        eta_recons_test = convert_2d_to_3d(eta_recons_test, X_eta.shape[1], X_eta.shape[0], num_test_snaps)
+        surf_recons_test = U_surf @ np.diag(S_surf) @ np.transpose(V_tot_recons[:, 0 + num_sensor :r_new + num_sensor])
+        del U_surf, S_surf
+        surf_recons_test = convert_2d_to_3d(surf_recons_test, X_surf.shape[1], X_surf.shape[0], num_test_snaps)
     else:
         #Extract SVD fields
         if open_svd:
-            U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = open_and_reduce_SVD(experimental_ens, exp_case, 900, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True, plane=plane)
+            U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = open_and_reduce_SVD(experimental_ens, exp_case, 900, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True, plane=plane)
 
             if surface:
-                U_tot_red = U_tot_eta_red
-                S_tot_red = S_tot_eta_red
+                U_tot_red = U_tot_surf_red
+                S_tot_red = S_tot_surf_red
             else:
                 U_tot_red = U_tot_u_red
                 S_tot_red = S_tot_u_red
         
         if surface:
             plane_index=0
-            dimY = X_eta.shape[1]
-            dimX = X_eta.shape[0]
+            dimY = X_surf.shape[1]
+            dimX = X_surf.shape[0]
         else:
             plane_index=1
             dimY = X_vel.shape[1]
@@ -1063,7 +1062,7 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     #extract test images from original data
     if no_input_u_fluc:
         if surface:
-            u_fluc = get_surface(DNS_case) #calling it u_fluc although it is eta_fluc, due to similar usage in both cases in this function
+            u_fluc = get_surface(DNS_case) #calling it u_fluc although it is surf_fluc, due to similar usage in both cases in this function
         else:
             u_fluc = get_velocity_plane_DNS(DNS_case, plane)
             

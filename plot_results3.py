@@ -257,7 +257,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
     #NOTE: here we separate between matrices for velocity 'u' and surface elevation 'eta' due to difference in geometry/size
         #but time dynamics of same sampling and length, so the V matrices are stacked together
         #V_tot: matrix with horizontally stacked V matrices from eta (surface elevation field) and u (velocity field of chosen plane) respectively
-    U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot = utilities.open_SVD(900, ensemble, vel_fluc=False, variable='u', exp=True, teetank_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, plane=depth)
+    U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = utilities.open_SVD(900, ensemble, vel_fluc=False, variable='u', exp=True, experimental_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, plane=depth)
     
     #exctract V matrix for velocity field, from the total stacked V matrix
     V_tot_u = V_tot[:, 900:]
@@ -277,7 +277,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
 
 
 
-def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_vals, num_sensors):
+def plot_psd_compare(DNS_planes, exp_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
 
     #must open shred for each case
     
@@ -287,16 +287,16 @@ def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_v
 
     #case E1 (P25)
         
-    plane = planes[Tee_planes[0]-1]
-    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank('P25', plane)
+    plane = planes[exp_planes[0]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P25', plane)
     #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(Tee_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], plane, DNS=False,  Tee_plane=plane, full_planes=True, forecast=False)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], plane, DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
     num_test_snaps = len(test_indices)
     #get SVDs correctly
-    U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(Tee_ensembles[0], 'P25', 900, r_vals[2], forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, Teetank=True, Tee_plane=plane)
-    eta_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, Tee_ensembles[0], 'P25',900, r_vals[2], 
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[0], 'P25', 900, r_vals[2], forecast=False, DNS_new=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, exp_plane=plane)
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25',900, r_vals[2], 
                                                                                                             SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
     gt_fft_p25, recon_fft_p25, k_vals_p25 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False, DNS_case='RE2500')
@@ -312,16 +312,16 @@ def plot_psd_compare(DNS_planes, Tee_planes, SHRED_ensembles, Tee_ensembles, r_v
 
     #case E2 (P50)
 
-    plane = planes[Tee_planes[1]-1]
-    X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank('P50', plane)
+    plane = planes[exp_planes[1]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P50', plane)
     #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(Tee_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], plane, DNS=False,  plane=plane, full_planes=True, forecast=False)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], plane, DNS=False,  plane=plane, full_planes=True, forecast=False)
     num_test_snaps = len(test_indices)
     #get SVDs correctly
-    U_tot_u_red, S_tot_u_red, U_tot_eta_red, S_tot_eta_red, V_tot_red = utilities.open_and_reduce_SVD(Tee_ensembles[1], 'P50', 900, r_vals[3], forecast=False, DNS_new=False, DNS_plane=None,
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[1], 'P50', 900, r_vals[3], forecast=False, DNS_new=False, DNS_plane=None,
                                                                                                                    DNS_surf=False, exp=True, Tee_plane=plane)
-    eta_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, eta_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_eta, X_vel, Tee_ensembles[1], 'P50',900, r_vals[3], 
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50',900, r_vals[3], 
                                                                                                             SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
     gt_fft_p50, recon_fft_p50, k_vals_p50 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False, DNS_case='RE2500')
@@ -1160,38 +1160,101 @@ def plot_time_series_error_metrics(vel_planes_DNS1, vel_planes_DNS2, vel_planes_
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
     
-def plot_instantaneous_RMS(DNS_cases, teetank_ens,  SHRED_ens_DNS, SHRED_ens_tee, snap_indices_DNS, snap_indices_tee, ranks, num_sensors, colors, labels, z_norm='int'):
-    '''plots the instantaneous RMS profile from SHRED'''
+def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
+    """
+    Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
+    four flow cases – two DNS (S1/S2) and two experimental (E1/E2) – and
+    compare ground truth against SHRED reconstructions.
 
-    rms_gt_1, rms_recons_1 = processdata.open_instantaneous_rms_profile('RE1000', SHRED_ens_DNS, ranks[0], num_sensors)
-    rms_gt_2, rms_recons_2 = processdata.open_instantaneous_rms_profile('RE2500', SHRED_ens_DNS, ranks[1], num_sensors)
-    rms_gt_p25, rms_recons_p25 = processdata.open_instantaneous_rms_profile_teetank('P25', teetank_ens, SHRED_ens_tee, ranks[2], num_sensors)
-    rms_gt_p50, rms_recons_p50 = processdata.open_instantaneous_rms_profile_teetank('P50', teetank_ens, SHRED_ens_tee, ranks[3], num_sensors)
+    A 4 × 3 panel figure is created:
+
+    ==========================  =========================================
+    Row                          Cases plotted (left → right)
+    --------------------------  -----------------------------------------
+    0 (top)                     S1 (RE1000) snapshots *i = 0,1,2*
+    1                            S2 (RE2500) snapshots *i = 0,1,2*
+    2                           E1 (P25)    snapshots *i = 0,1,2*
+    3 (bottom)                  E2 (P50)    snapshots *i = 0,1,2*
+    ==========================  =========================================
+
+    Each subplot shows:
+
+    * Solid line – ground-truth RMS profile at snapshot *i*
+    * Dashed line – SHRED-reconstructed RMS profile
+    * Depth axis optionally normalised (``z_norm``)
+
+    The final figure is saved both as PNG and PDF.
+
+    Parameters
+    ----------
+    experimental_ens : int
+        Experimental ensemble index used to load SVD/RMS data.
+    SHRED_ens_DNS : int
+        SHRED ensemble seed for DNS cases.
+    SHRED_ens_exp : int
+        SHRED ensemble seed for experimental cases.
+    snap_indices_DNS : list[int]
+        Three snapshot indices to plot for S1 and S2.
+    snap_indices_exp : list[int]
+        Three snapshot indices to plot for E1 and E2.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks (unused here but reserved for future use).
+    num_sensors : int
+        Number of surface sensors (used only in filename bookkeeping).
+    colors : tuple[str, str, str, str]
+        Line colours for S1, S2, E1, E2 (in that order).
+    labels : tuple[tuple[str, str], ...]
+        Label pairs ``(ground_truth_label, recon_label)`` per snapshot.
+    z_norm : {"int", "taylor", "mixed", None}, default "int"
+        Normalisation for the vertical axis:
+        * ``"int"``  →  integral length scale  
+        * ``"taylor"`` → Taylor microscale  
+        * ``"mixed"``  →  √(Lλ L∞)  
+        * ``None``     →  raw grid index
+
+    Returns
+    -------
+    None
+        Produces a Matplotlib figure and writes files:
+
+        * ``.../Results/DNS_cases_rms_instantaneous.png``
+        * ``.../Results/DNS_cases_rms_instantaneous.pdf``
+
+    Notes
+    -----
+    * Requires pre-computed `.mat` files created by
+      ``processdata.open_instantaneous_rms_profile(_exp)``.
+    """
+
+    rms_gt_S1, rms_recons_S1 = processdata.open_instantaneous_rms_profile('RE1000', SHRED_ens_DNS)
+    rms_gt_S2, rms_recons_S2 = processdata.open_instantaneous_rms_profile('RE2500', SHRED_ens_DNS)
+    rms_gt_E1, rms_recons_E1 = processdata.open_instantaneous_rms_profile_exp('P25', experimental_ens, SHRED_ens_exp)
+    rms_gt_E2, rms_recons_E2 = processdata.open_instantaneous_rms_profile_exp('P50', experimental_ens, SHRED_ens_exp)
     
     #choose snap indices
-    rms_gt_1 = rms_gt_1[:, snap_indices_DNS]
-    rms_recons_1 = rms_recons_1[:,snap_indices_DNS]
+    rms_gt_S1 = rms_gt_S1[:, snap_indices_DNS]
+    rms_recons_S1 = rms_recons_S1[:,snap_indices_DNS]
 
-    rms_gt_2= rms_gt_2[:,snap_indices_DNS]
-    rms_recons_2 = rms_recons_2[:,snap_indices_DNS]
+    rms_gt_S2= rms_gt_S2[:,snap_indices_DNS]
+    rms_recons_S2 = rms_recons_S2[:,snap_indices_DNS]
 
-    rms_gt_p25 = rms_gt_p25[:, snap_indices_tee]
-    rms_recons_p25 = rms_recons_p25[:,snap_indices_tee]
+    rms_gt_E1 = rms_gt_E1[:, snap_indices_exp]
+    rms_recons_E1 = rms_recons_E1[:,snap_indices_exp]
 
     
 
-    rms_gt_p50= rms_gt_p50[:,snap_indices_tee]
-    rms_recons_p50 = rms_recons_p50[:,snap_indices_tee]
+    rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
+    rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
     
     #plot
-    z1 = utilities.get_zz_DNS('RE1000')
-    z2 = utilities.get_zz_DNS('RE2500')
-    z1 = utilities.get_normalized_z(z1, z_norm, 'RE1000')
-    z2 = utilities.get_normalized_z(z2, z_norm, 'RE2500')
+    z_S1 = utilities.get_zz_DNS('RE1000')
+    z_S2 = utilities.get_zz_DNS('RE2500')
+    z_S1 = utilities.get_normalized_z(z_S1, z_norm, 'RE1000')
+    z_S2 = utilities.get_normalized_z(z_S2, z_norm, 'RE2500')
 
-    z_tee = utilities.get_zz_tee()
-    z_p25 = utilities.get_normalized_z_tee(z_tee, z_norm, teetank_case='P25')
-    z_p50 = utilities.get_normalized_z_tee(z_tee, z_norm, teetank_case='P50')
+    z_exp = utilities.get_zz_exp()
+    z_E1 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P25')
+    z_E2 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P50')
 
     
     plt.rcParams.update({
@@ -1235,45 +1298,45 @@ def plot_instantaneous_RMS(DNS_cases, teetank_ens,  SHRED_ens_DNS, SHRED_ens_tee
     for i in range(len(snap_indices_DNS)):
         #Row 1: RMS for u and w
         print(i)
-        ax_re1000 = axes[0][i]
-        ax_re1000.plot(rms_recons_1[:,i], z1, linestyle='--', color=colors[0], label=labels[i][1])
-        ax_re1000.plot(rms_gt_1[:,i], z1, linestyle='-', color=colors[0], label=labels[i][0])
+        ax_S1 = axes[0][i]
+        ax_S1.plot(rms_recons_S1[:,i], z_S1, linestyle='--', color=colors[0], label=labels[i][1])
+        ax_S1.plot(rms_gt_S1[:,i], z_S1, linestyle='-', color=colors[0], label=labels[i][0])
 
-        ax_re2500 = axes[1][i]
-        ax_re2500.plot(rms_recons_2[:,i], z2, linestyle='--', color=colors[1], label=labels[i][1])
-        ax_re2500.plot(rms_gt_2[:,i], z2, linestyle='-', color=colors[1], label=labels[i][0])
+        ax_S2 = axes[1][i]
+        ax_S2.plot(rms_recons_S2[:,i], z_S2, linestyle='--', color=colors[1], label=labels[i][1])
+        ax_S2.plot(rms_gt_S2[:,i], z_S2, linestyle='-', color=colors[1], label=labels[i][0])
 
-        ax_p25 = axes[2][i]
-        ax_p25.plot(rms_recons_p25[:,i], z_p25[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
-        ax_p25.plot(rms_gt_p25[:,i], z_p25[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
+        ax_E1 = axes[2][i]
+        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
+        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
 
-        ax_p50 = axes[3][i]
-        ax_p50.plot(rms_recons_p50[:,i], z_p50[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
-        ax_p50.plot(rms_gt_p50[:,i], z_p50[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
+        ax_E2 = axes[3][i]
+        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
+        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
         
-        ax_re1000.set_xlabel('RMS u, S1', fontsize=14)
-        ax_re2500.set_xlabel('RMS u, S2', fontsize=14)
-        ax_p25.set_xlabel('RMS u, E1', fontsize=14)
-        ax_p50.set_xlabel('RMS u, E2', fontsize=14)
+        ax_S1.set_xlabel('RMS u, S1', fontsize=14)
+        ax_S2.set_xlabel('RMS u, S2', fontsize=14)
+        ax_E1.set_xlabel('RMS u, E1', fontsize=14)
+        ax_E2.set_xlabel('RMS u, E2', fontsize=14)
 
-        ax_re1000.set_xlim((0.06,0.21))
-        ax_re2500.set_xlim((0.055,0.19))
-        ax_p25.set_xlim((0.65,2.3))
-        ax_p50.set_xlim((0.3,2.8))
+        ax_S1.set_xlim((0.06,0.21))
+        ax_S2.set_xlim((0.055,0.19))
+        ax_E1.set_xlim((0.65,2.3))
+        ax_E2.set_xlim((0.3,2.8))
         if i>0:
-            ax_re1000.set_yticklabels([])
-            ax_re2500.set_yticklabels([])
-            ax_p25.set_yticklabels([])
-            ax_p50.set_yticklabels([])
-        ax_re1000.grid()
-        ax_re2500.grid()
-        ax_p25.grid()
-        ax_p50.grid()
+            ax_S1.set_yticklabels([])
+            ax_S2.set_yticklabels([])
+            ax_E1.set_yticklabels([])
+            ax_E2.set_yticklabels([])
+        ax_S1.grid()
+        ax_S2.grid()
+        ax_E1.grid()
+        ax_E2.grid()
         if i==0:
-            ax_re1000.legend(fontsize=13)
-            ax_re2500.legend(fontsize=13)
-            ax_p25.legend(fontsize=13)
-            ax_p50.legend(fontsize=13)
+            ax_S1.legend(fontsize=13)
+            ax_S2.legend(fontsize=13)
+            ax_E1.legend(fontsize=13)
+            ax_E2.legend(fontsize=13)
 
     ax1.set_ylabel(z_label, fontsize=16)
     ax4.set_ylabel(z_label, fontsize=16)
@@ -1531,7 +1594,7 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
     
     #iterate test snaps:
     #filenames_snaps = []
-    #X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_Teetank(teetank_case, depth)
+  
     
     
 
@@ -1541,7 +1604,7 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
         planes = ['H395', 'H390', 'H375', 'H350', 'H300']
         plane = planes[plane_list[i]-1]
         print("plane: ", plane)
-        X_eta, Y_eta, X_vel, Y_vel = utilities.get_mesh_exp(exp_case, plane)
+        X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(exp_case, plane)
         #plane_index = i+1
         #construct raw fields
 
@@ -1555,15 +1618,15 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
         if add_surface:
             #plane=0
             #plane_index=0
-            eta_fluc_test, eta_svd_test, eta_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
-                                                                                                            X_eta, X_vel, experimental_ens, exp_case, r_new, 
+            surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
+                                                                                                            X_surf, X_vel, experimental_ens, exp_case, r_new, 
                                                                                                             SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True,
                                                                                                               lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
             del u_fluc2
-            eta_fluc_test = eta_fluc_test[:, :, test_snap_index]
-            eta_svd = eta_svd_test[:, :, test_snap_index]
-            eta_recons = eta_recons_test[:, :, test_snap_index]
-            row1 = [eta_fluc_test, eta_svd, eta_recons]  # First row
+            surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+            surf_svd = surf_svd_test[:, :, test_snap_index]
+            surf_recons = surf_recons_test[:, :, test_snap_index]
+            row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
             all_rows.append(row1)
             if len(plane_list) >= 3:
                 spacing = 0.1
@@ -1586,7 +1649,7 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
 
 
         print("getting test images")
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_eta, X_vel, experimental_ens, exp_case, r_new, 
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, r_new, 
                                                             SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
         del u_fluc2
         print("test images extracted")
@@ -1669,16 +1732,16 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
         fig.savefig(filename + ".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
       
 
-def loop_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, eta_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500'):
+def loop_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500'):
     
     indices = np.arange(test_index_start, test_index_end+1)
     
     for i in range(len(indices)):
         test_snap_index = indices[i]
-        plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_snap_index, eta_scale, u_scale, lags=52, forecast=False, add_surface=add_surface, full_planes=True, DNS_case=DNS_case)
+        plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_snap_index, surf_scale, u_scale, lags=52, forecast=False, add_surface=add_surface, full_planes=True, DNS_case=DNS_case)
 
 
-def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, eta_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500', gif_name='DNS GIF'):
+def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500', gif_name='DNS GIF'):
 
     indices = np.arange(test_index_start, test_index_end+1)
     filenames = []
