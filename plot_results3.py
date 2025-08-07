@@ -1826,12 +1826,74 @@ def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index
         filenames.append(fname) 
     utilities.create_GIF(filenames, gif_name)
 
+
+
 def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
-    '''function to plot parameter analysis, where depth and ensemble averaged error metrics are plotted and normalized for a range of variable values.
-        Either varying rank r (given by a list r_vals) or varying number of sensors (given by sensor_vals)'''
-        
-        
-    mse_list, ssim_list, psnr_list, psd_list = processdata.calc_avg_error(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=full_planes,r_analysis=r_analysis)
+    """
+    Compare how average reconstruction error metrics changes when either the
+    SVD‐rank r or the number of surface sensors is varied for a given DNS
+    case, and visualise the result in a single normalised line plot.
+
+    Parameters
+    ----------
+    DNS_case : {S1, S2}
+        Identifier string for the DNS data set 
+
+    r_vals : list[int]
+        List of SVD ranks that were used in the SHRED runs.  Only consulted
+        when r_analysis is True.
+
+    vel_planes : list[int]
+        Indices of the horizontal velocity planes whose SHRED error metrics
+        should be included in the depth-averaging.
+
+    sensor_vals : list[int]
+        List of sensor counts that were used when r_analysis is ``False``;
+        ignored otherwise.
+
+    optimal_var_val : int | float
+        Reference value (e.g. “best” rank) that will be emphasised with a
+        vertical dashed line in the plot.
+
+    SHRED_ensembles : list[int]
+        Indices of the SHRED training ensembles to be averaged over when
+        computing the error metrics.
+
+    full_planes : bool, default ``False``
+        If True the error for **all** DNS planes is loaded; otherwise only
+        the planes listed in *vel_planes* are considered.
+
+    r_analysis : bool, default ``True``
+        • True – vary r_vals while the number of sensors is fixed.  
+        • False – vary sensor_vals while r is fixed.
+
+    singular_val_energy : bool, default ``False``
+        When r_analysis is True and this flag is set, the x-axis is
+        converted from rank to cumulative SVD energy (%) before plotting.
+
+    comp_rate : bool, default ``False``
+        Alternative x-axis for r_analysis: percentage of total available SVD
+        modes that are retained.
+
+    Returns
+    -------
+    None
+        The function gives a plot:
+
+        * Normalises each metric to its own maximum and produces a Matplotlib
+          figure showing all four metrics versus either rank (or its proxy) or
+          sensor count.
+        * Saves the figure as ``"<var_str>_analysis_DNS_<DNS_case>.pdf"`` in the
+          working directory and displays it on screen.
+
+    """
+    
+    DNS_case = utilities.case_name_converter(DNS_case)
+    
+    #calculate average error vertically using all given planes in vel_planes, 
+    #for all rank values in r_vals
+    #it gives a list of avg error metric values corresponding to the r_vals ranks
+    mse_list, ssim_list, psnr_list, psd_list = processdata.calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=full_planes,r_analysis=r_analysis)
         
     if r_analysis:
         var_vals = r_vals
@@ -1851,7 +1913,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
         var_vals = sensor_vals
         var_str = 'sensors'
         
-    rank = r_vals[0]
+    
     plt.plot([optimal_var_val,optimal_var_val],[0.3,1.01], "--", color='k')
     plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
@@ -1868,17 +1930,78 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.show()
 
 
-def plot_parameter_analysis_tee(Teetank_case, Tee_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
-    '''function to plot parameter analysis, where depth and ensemble averaged error metrics are plotted and normalized for a range of variable values.
-        Either varying rank r (given by a list r_vals) or varying number of sensors (given by sensor_vals)'''
+def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
+    """
+    Compare how average reconstruction error metrics changes when either the
+    SVD‐rank r or the number of surface sensors is varied for a given experimental
+    case, and visualise the result in a single normalised line plot.
+
+    Parameters
+    ----------
+    case : {E1, E2}
+        Identifier string for the experimental data set 
+
         
-    mse_list, ssim_list, psnr_list, psd_list =processdata.calc_avg_error_tee(Teetank_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, Tee_ensembles, forecast=False, add_surface=False, full_planes=full_planes, new_naming=True, r_analysis=r_analysis)
+    experimental_ensembles : list[int]
+        List of experimental ensemble indices that were used in the SHRED runs. .
+
+    r_vals : list[int]
+        List of SVD ranks that were used in the SHRED runs.  Only consulted
+        when r_analysis is True.
+
+    vel_planes : list[int]
+        Indices of the horizontal velocity planes whose SHRED error metrics
+        should be included in the depth-averaging.
+
+    sensor_vals : list[int]
+        List of sensor counts that were used when r_analysis is ``False``;
+        ignored otherwise.
+
+    optimal_var_val : int | float
+        Reference value (e.g. “best” rank) that will be emphasised with a
+        vertical dashed line in the plot.
+
+    SHRED_ensembles : list[int]
+        Indices of the SHRED training ensembles to be averaged over when
+        computing the error metrics.
+
+    full_planes : bool, default ``False``
+        If True the error for **all** DNS planes is loaded; otherwise only
+        the planes listed in *vel_planes* are considered.
+
+    r_analysis : bool, default ``True``
+        • True – vary r_vals while the number of sensors is fixed.  
+        • False – vary sensor_vals while r is fixed.
+
+    singular_val_energy : bool, default ``False``
+        When r_analysis is True and this flag is set, the x-axis is
+        converted from rank to cumulative SVD energy (%) before plotting.
+
+    comp_rate : bool, default ``False``
+        Alternative x-axis for r_analysis: percentage of total available SVD
+        modes that are retained.
+
+    Returns
+    -------
+    None
+        The function gives a plot:
+
+        * Normalises each metric to its own maximum and produces a Matplotlib
+          figure showing all four metrics versus either rank (or its proxy) or
+          sensor count.
+        * Saves the figure as ``"<var_str>_analysis_teetank_<case>.pdf"`` in the
+          working directory and displays it on screen.
+
+    """
+    case = utilities.case_name_converter(case)
+
+    mse_list, ssim_list, psnr_list, psd_list =processdata.calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, experimental_ensembles, forecast=False, add_surface=False, full_planes=full_planes, r_analysis=r_analysis)
         
     if r_analysis:
         var_vals = r_vals
         total_ranks=900
 
-        s_energy, r_percentage = utilities.get_cumsum_svd_tee(r_vals, total_ranks, Teetank_case, Tee_ensembles[0], plane=2)
+        s_energy, r_percentage = utilities.get_cumsum_svd_exp(r_vals, total_ranks, case, experimental_ensembles[0], plane=2)
         var_str = 'rank'
         if singular_val_energy:
             var_vals = s_energy*100
@@ -1890,7 +2013,7 @@ def plot_parameter_analysis_tee(Teetank_case, Tee_ensembles, r_vals, vel_planes,
         var_vals = sensor_vals
         var_str = 'sensors'
         
-    rank = r_vals[0]
+    
     plt.plot([optimal_var_val,optimal_var_val],[0.21,1.01], "--", color='k')
     plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
@@ -1902,7 +2025,7 @@ def plot_parameter_analysis_tee(Teetank_case, Tee_ensembles, r_vals, vel_planes,
     plt.tick_params(axis='x', which='major', labelsize=13)
     plt.tick_params(axis='y', which='major', labelsize=13)
     #plt.ylabel('PSNR')
-    plt.savefig(var_str + "_analysis_teetank_"+Teetank_case+".pdf")
+    plt.savefig(var_str + "_analysis_teetank_"+case+".pdf")
     plt.show()
 
 
