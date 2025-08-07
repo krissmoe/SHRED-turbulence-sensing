@@ -1068,92 +1068,132 @@ def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_c
     return fig, gs
 
 
-def plot_time_series_error_metrics(vel_planes_DNS1, vel_planes_DNS2, vel_planes_Tee1, vel_planes_Tee2, SHRED_ensembles, SHRED_ensembles_tee, Tee_ensembles):
+def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimental_ensembles, metric='rms'):
+    """
+    Compare per-snapshot error metrics for four flow cases
+    (DNS S1, DNS S2, experiment E1 and E2) and visualise them as a 2 × 2
+    panel of time-series plots.
     
-    RMS_true_RE1000, RMS_recons_RE1000, mse_snapshots_RE1000, ssim_snapshots_RE1000, psnr_snapshots_RE1000, psd_snapshots_RE1000= processdata.calculate_temporal_error_metrics('RE1000', 225, vel_planes_DNS1, 3, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True)
-    RMS_true_RE2500, RMS_recons_RE2500,mse_snapshots_RE2500, ssim_snapshots_RE2500, psnr_snapshots_RE2500, psd_snapshots_RE2500= processdata.calculate_temporal_error_metrics('RE2500', 250, vel_planes_DNS2, 3, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True)
-    RMS_true_P25, RMS_recons_P25,mse_snapshots_P25, ssim_snapshots_P25, psnr_snapshots_P25, psd_snapshots_P25 = processdata.calculate_temporal_error_metrics_tee('P25', 100, None, vel_planes_Tee1, 3, SHRED_ensembles_tee, Tee_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True)
-    RMS_true_P50, RMS_recons_P50,mse_snapshots_P50, ssim_snapshots_P50, psnr_snapshots_P50, psd_snapshots_P50 = processdata.calculate_temporal_error_metrics_tee('P50', 100, None, vel_planes_Tee2, 3, SHRED_ensembles_tee, Tee_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True)
+    Parameters
+    ----------
+    ranks
+        Four-element list with the SVD truncation rank *r* used for each case
+        – order: ``[S1, S2, E1, E2]``.
+    vel_planes
+        Lists of horizontal plane indices for S1, S2, E1, E2.
+    SHRED_ensembles
+        Ensemble indices (list) for cases S1, S2, E1, E2.
+    experimental_ensembles
+        List of experimental ensemble numbers for cases E1 and E2
+        ``calculate_temporal_error_metrics_exp``.
+    metric : {'rms', 'mse', 'ssim', 'psnr', 'psd'}, default ``'rms'``
+        Which quantity to plot.  If ``'rms'`` the function also overlays the
+        reconstructed RMS (dashed blue) on the ground-truth RMS (black).
+
+    Returns
+    -------
+    None
+    * Saves files as  
+      ``Results/time_series_error_metrics_<metric>.png`` and ``.pdf``.
+
+    """
+    RMS_true_S1, RMS_recons_S1, mse_snapshots_S1, ssim_snapshots_S1, psnr_snapshots_S1, psd_snapshots_S1= processdata.calculate_temporal_error_metrics('S1', ranks[0], vel_planes[0], 3, SHRED_ensembles[0], lags=52, forecast=False,  full_planes=True)
+    RMS_true_S2, RMS_recons_S2,mse_snapshots_S2, ssim_snapshots_S2, psnr_snapshots_S2, psd_snapshots_S2= processdata.calculate_temporal_error_metrics('S2', ranks[1], vel_planes[1], 3, SHRED_ensembles[1], lags=52, forecast=False,  full_planes=True)
+    RMS_true_E1, RMS_recons_E1,mse_snapshots_E1, ssim_snapshots_E1, psnr_snapshots_E1, psd_snapshots_E1 = processdata.calculate_temporal_error_metrics_exp('E1', ranks[2], None, vel_planes[2], 3, SHRED_ensembles[2], experimental_ensembles[0], lags=52, forecast=False, full_planes=True)
+    RMS_true_E2, RMS_recons_E2,mse_snapshots_E2, ssim_snapshots_E2, psnr_snapshots_E2, psd_snapshots_E2 = processdata.calculate_temporal_error_metrics_exp('E2', ranks[3], None, vel_planes[3], 3, SHRED_ensembles[3], experimental_ensembles[1], lags=52, forecast=False,  full_planes=True)
     
-    test_snaps1=np.arange(0,len(mse_snapshots_RE1000))
-    test_snaps2=np.arange(0,len(mse_snapshots_RE2500))
-    test_snaps3= np.arange(0, len(mse_snapshots_P25))
-    test_snaps4=np.arange(0,len(mse_snapshots_P50))
+    test_snaps1=np.arange(0,len(mse_snapshots_S1))
+    test_snaps2=np.arange(0,len(mse_snapshots_S2))
+    test_snaps3= np.arange(0, len(mse_snapshots_E1))
+    test_snaps4=np.arange(0,len(mse_snapshots_E2))
         
     fig = plt.figure(figsize=(14, 10))
     gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
     
+    if metric=='rms':
+        ylabel = 'u RMS'
+        variable_S1 = RMS_true_S1
+        variable_S2 = RMS_true_S2
+        variable_E1 = RMS_true_E1
+        variable_E2 = RMS_true_E2
+
+    elif metric=='mse':
+        ylabel = 'MSE'
+        variable_S1 = mse_snapshots_S1
+        variable_S2 = mse_snapshots_S2
+        variable_E1 = mse_snapshots_E1
+        variable_E2 = mse_snapshots_E2
+    elif metric=='ssim':
+        ylabel = 'SSIM'
+        variable_S1 = ssim_snapshots_S1
+        variable_S2 = ssim_snapshots_S2
+        variable_E1 = ssim_snapshots_E1
+        variable_E2 = ssim_snapshots_E2
+    elif metric=='psnr':
+        ylabel = 'PSNR'
+        variable_S1 = psnr_snapshots_S1
+        variable_S2 = psnr_snapshots_S2
+        variable_E1 = psnr_snapshots_E1
+        variable_E2 = psnr_snapshots_E2
+    elif metric=='psd':
+        ylabel = 'PSDE'
+        variable_S1 = psd_snapshots_S1
+        variable_S2 = psd_snapshots_S2
+        variable_E1 = psd_snapshots_E1
+        variable_E2 = psd_snapshots_E2
+    else:
+        print("This metric does not exist")
+    
 
     # Row 1: RMS for u and w
     ax1 = fig.add_subplot(gs[0, 0])
-    #ax1.plot(test_snaps1, mse_snapshots_RE1000, label='MSE S1')
-    #ax1.plot(test_snaps1, psd_snapshots_RE1000, label='PSD error S1')
-    #ax1.plot(test_snaps1, ssim_snapshots_RE1000, label='SSIM S1')
+    ax2 = fig.add_subplot(gs[0, 1], sharey=ax1)
+    ax3 = fig.add_subplot(gs[1,0])
+    ax4 = fig.add_subplot(gs[1,1], sharey=ax3)
+
     
-    #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
-    #ax2.tick_params(axis='y', labelcolor='r')
-    ax1.plot(test_snaps1[200:600], RMS_true_RE1000[200:600], linestyle='-', color='k')
-    ax1.plot(test_snaps1[200:600], RMS_recons_RE1000[200:600], linestyle='--', color='blue')
-    ax1.set_ylabel('RMS u', fontsize=15)
+    
+    if metric=='rms':
+        ax1.set_ylim(bottom=0.05, top=0.25)
+        ax2.set_ylim(bottom=0.05, top=0.25)
+        ax3.set_ylim(bottom=0.6, top=5.0)
+        ax4.set_ylim(bottom=0.6, top=5.0)
+        
+        ax1.plot(test_snaps1[200:600], RMS_recons_S1[200:600], linestyle='--', color='blue')
+        ax2.plot(test_snaps2[200:600], RMS_recons_S2[200:600], linestyle='--', color='blue')
+        ax3.plot(test_snaps3, RMS_recons_E1, linestyle='--', color='blue')
+        ax4.plot(test_snaps4, RMS_recons_E2, linestyle='--', color='blue')
+    
+    ax1.plot(test_snaps1[200:600], variable_S1[200:600], linestyle='-', color='k')
+    ax1.set_ylabel(ylabel, fontsize=15)
     ax1.grid()
-    ax1.set_ylim(bottom=0.05, top=0.25)
-    #ax2 = ax1.twinx()
-    #ax2.plot(test_snaps1[200:600], mse_snapshots_RE1000[200:600], linestyle='dotted', label='MSE', color='darkred')
-    #ax2.tick_params(axis='y', labelcolor='darkred')
-    #ax2.set_ylim(bottom=0.0, top=0.35)
-    #ax4.set_y_label('SSIM', fontsize=15)
 
-    ax3 = fig.add_subplot(gs[0, 1])
-    #ax3.plot(test_snaps2, mse_snapshots_RE2500, label='MSE S2')
-    #ax3.plot(test_snaps2, psd_snapshots_RE2500, label='PSD error S2')
-    #ax3.plot(test_snaps2, ssim_snapshots_RE2500, label='SSIM S2')
-    #ax4 = ax3.twinx()
-    #ax4.plot(test_snaps2, psnr_snapshots_RE2500, color='r', label='PSNR S2')
-    #ax4.tick_params(axis='y', labelcolor='r')
-    ax3.plot(test_snaps2[200:600], RMS_true_RE2500[200:600], linestyle='-', color='k')
-    ax3.plot(test_snaps2[200:600], RMS_recons_RE2500[200:600], linestyle='--', color='blue')
-    ax3.set_ylim(bottom=0.05, top=0.25)
-    ax3.tick_params(left=False, labelleft=False)
+
+    ax2.plot(test_snaps2[200:600], variable_S2[200:600], linestyle='-', color='k')
+    ax2.tick_params(left=False, labelleft=False)
+    ax2.grid()
+
+
+    ax3.plot(test_snaps3, variable_E1, linestyle='-', color='k')
+    ax3.set_ylabel(ylabel, fontsize=15)
     ax3.grid()
-    #ax4 = ax3.twinx()
-    #ax4.plot(test_snaps2[200:600], mse_snapshots_RE2500[200:600], linestyle='dotted', label='MSE', color='darkred')
-    #ax4.tick_params(axis='y', labelcolor='darkred')
-    #ax4.set_ylim(bottom=0.0, top=0.35)
-    #ax4.set_ylabel('MSE', fontsize=15)
+    ax3.set_xlabel('test snapshot', fontsize=15)
 
-    ax5 = fig.add_subplot(gs[1,0])
-    ax5.plot(test_snaps3, RMS_true_P25, linestyle='-', color='k')
-    ax5.plot(test_snaps3, RMS_recons_P25, linestyle='--', color='blue')
-    ax5.set_ylim(bottom=0.6, top=5.0)
-    ax5.set_ylabel('RMS u', fontsize=15)
-    ax5.grid()
-    ax5.set_xlabel('test snapshot', fontsize=15)
-    #ax6 = ax5.twinx()
-    #ax6.plot(test_snaps3, mse_snapshots_P25, linestyle='dotted', label='MSE', color='darkred')
-    #ax6.set_ylim(bottom=0.0, top=0.35)
+    ax4.plot(test_snaps4, variable_E2, linestyle='-', color='k')
+    ax4.grid()
+    ax4.set_xlabel('test snapshot', fontsize=15)
+    ax4.tick_params(left=False, labelleft=False)    
 
-    ax7 = fig.add_subplot(gs[1,1])
-    ax7.plot(test_snaps4, RMS_true_P50, linestyle='-', color='k')
-    ax7.plot(test_snaps4, RMS_recons_P50, linestyle='--', color='blue')
-    ax7.set_ylim(bottom=0.6, top=5.0)
-    ax7.grid()
-    ax7.set_xlabel('test snapshot', fontsize=15)
-    ax7.tick_params(left=False, labelleft=False)    
-    #ax8 = ax7.twinx()
-    #ax8.plot(test_snaps4, mse_snapshots_P50, linestyle='dotted', label='SSIM', color='darkred')
-    #ax8.tick_params(axis='y', labelcolor='darkred')
-    #ax8.set_ylim(bottom=0.0, top=0.35)
-    #ax8.set_ylabel('MSE', fontsize=15)
-    for ax in [ax1, ax3, ax5, ax7]:
+    for ax in [ax1, ax2, ax3, ax4]:
         ax.tick_params(axis='x', which='major', labelsize=13)
 
     # Apply to y-axis of ax1 and ax5
     ax1.tick_params(axis='y', which='major', labelsize=13)
-    ax5.tick_params(axis='y', which='major', labelsize=13)  
+    ax3.tick_params(axis='y', which='major', labelsize=13)  
     
     fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\time_series_error_metrics" 
+    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\time_series_error_metrics_"+metric 
     filename = adr_loc_3
     filename2 = filename + ".png"
     fig.savefig(filename2)

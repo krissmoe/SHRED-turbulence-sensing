@@ -1432,194 +1432,262 @@ def calculate_error_metrics_exp(case, r_new, vel_planes, num_sensors, SHRED_ense
 
 
 
-def calculate_temporal_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True, new_naming=True):
+def calculate_temporal_error_metrics(DNS_case, r_new, vel_plane, num_sensors, SHRED_ens, lags=52, forecast=False, full_planes=True):
+    """
+    Compute time-series error metrics for SHRED reconstructions of a DNS data set.
+
+    The function iterates over one or more previously-trained SHRED ensembles,
+    extracts the reconstructed velocity snapshots for the specified test indices,
+    and returns per-snapshot metrics that quantify the temporal fidelity of the model.
+
+    ---------- Parameters
+    DNS_case : str
+        Identifier of the DNS data set ('S1' or 'S2').
+    r_new : int
+        Truncation rank r used for the reduced SVD representation fed to SHRED.
+    vel_planes : list[int]
+        Indices of the horizontal velocity planes that were stacked into the
+        SVD array and reconstructed (surface elevation is **not** included here).
+    num_sensors : int
+        Number of point sensors at the surface that served as SHRED inputs.
+    SHRED_ens : int
+        Ensemble index for the SHRED run
+    lags : int, default 52
+        Length of the sliding-window sequence used during SHRED training;
+        needed because the last *lag–1* snapshots are excluded from the index pool.
+    forecast : bool, default False
+        If *True* the SHRED run was performed in “forecast” mode (continuous
+        hold-out block at the end of the time series); otherwise random
+        sampling was used.  Affects how ``utilities.open_SHRED`` resolves files.
+    full_planes : bool, default True
+        If *True* the entire set of DNS planes (57 or 76 depending on case) was
+        stacked; if *False* only the planes listed in *vel_planes* are present
+        in the SVD stack.  Needed for correct plane indexing.
+
+    ---------- Returns
+    RMS_true : np.ndarray
+        Array of shape ``(n_snapshots,)`` with the ground-truth planar RMS of
+        the target velocity component (computed over horizontal plane but per time
+        step).
+    RMS_recons : np.ndarray
+        Same as RMS_true but for the SHRED reconstruction.
+    mse_snapshots : np.ndarray
+        Normalised mean-square-error for every test snapshot
+        MSE(t) / ||u_truth(t)||².
+    ssim_snapshots : np.ndarray
+        Structural similarity index between truth and reconstruction,
+        computed per snapshot.
+    psnr_snapshots : np.ndarray
+        Peak signal-to-noise ratio (dB) per snapshot.
+    psd_snapshots : np.ndarray
+        Normalised power-spectral-density error per snapshot, as returned by
+        ``power_spectral_density_error_time_series``.
+        Length equals ``len(test_indices)``.
+
+    ---------- Notes.
+    * At present the function only *returns* the metrics for the **last** loop
+      iteration (last SHRED ensemble & last plane).  Extend the code or wrap
+      this function if you need full ensemble/plane arrays.
+
+    """
 
 
     #useful to define total number of planes per case
     #helps for picking out correct planes if we only want to
     #plot some (but not all) planes
-
+    DNS_case = utilities.case_name_converter(DNS_case)
     
     #open and reduce SVD
-    print("starting stacking SVD")
-
-
-    stack_planes=vel_planes 
+    stack_planes=[vel_plane] 
 
     U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays_DNS(stack_planes, r_new, DNS_case=DNS_case)                                                  
-    print("end stacking SVD")
+    
     #then iterate SHRED ensembles
-
     print("start ensemble looping")
-    RMS_ensembles_recons = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    RMS_ensembles_truth = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    for i in range(len(SHRED_ensembles)):
-        ensemble = SHRED_ensembles[i]
-        print("ensemble: ", ensemble)
 
-        print("open SHRED: ")
-        V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, ensemble, vel_planes, DNS=True, 
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, SHRED_ens, stack_planes, DNS=True, 
                                                                      full_planes=full_planes, forecast=forecast)
         
-        num_test_snaps = len(test_indices)
-        RMS_recons = np.zeros(len(test_indices))
-        RMS_true = np.zeros(len(test_indices))
+    num_test_snaps = len(test_indices)
+    RMS_recons = np.zeros(len(test_indices))
+    RMS_true = np.zeros(len(test_indices))
 
-        MSE_z = np.zeros(len(test_indices))
-        ssim_values = np.zeros(len(test_indices))
-        psnr_values = np.zeros(len(test_indices))
-        psd_error = np.zeros(len(test_indices))
+    vel_plane 
+    plane_index = 1 #shift with 1 to compensate for surface elevation when loading V matrices
+            
 
-        for j in range(len(vel_planes)):
-            plane = vel_planes[j]
-            plane_index = j+1 #shift with 1 to compensate for surface elevation when loading V matrices
             
-            print("plane: ", plane)
-            
-            u_fluc=None
-            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, 
+    u_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, vel_plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=lags, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
+    #calculate error metrics for this plane and ensemble case
 
-            #calculate error metrics for this plane and ensemble case
+    #RMS 
+    u_recons = utilities.convert_3d_to_2d(u_recons_test)
+    u_truth = utilities.convert_3d_to_2d(u_fluc_test)
 
-            #RMS 
-            u_recons = utilities.convert_3d_to_2d(u_recons_test)
-            u_truth = utilities.convert_3d_to_2d(u_fluc_test)
-
-            RMS_recons = utilities.RMS_plane(u_recons)
-            RMS_true =  utilities.RMS_plane(u_truth)
-
-
-            #Mean squared error (MSE)
-            print("calc MSE")
-            mse = np.mean((u_truth - u_recons) ** 2, axis=(0))  # Mean over spatial dimension
-            norm_factor = np.mean(u_truth ** 2, axis=(0))
-            mse_snapshots = mse / norm_factor
+    RMS_recons = utilities.RMS_plane(u_recons)
+    RMS_true =  utilities.RMS_plane(u_truth)
 
 
-            #SSIM
-            print("calc SSIM")
-            ssim_snapshots = [
-                ssim(u_fluc_test[:, :, t], u_recons_test[:, :, t], data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[ :, :, t].min())
-            for t in range(num_test_snaps)
-            ]
-            ssim_values = ssim_snapshots
-            print("ssim_vals: ", ssim_values)
+    #Mean squared error (MSE)
+    #print("calc MSE")
+    mse = np.mean((u_truth - u_recons) ** 2, axis=(0))  # Mean over spatial dimension
+    norm_factor = np.mean(u_truth ** 2, axis=(0))
+    mse_snapshots = mse / norm_factor
 
-            #PSNR
-            print("calc PSNR")
-            psnr_snapshots = [
-            psnr(
-                u_fluc_test[:, :, t],
-                u_recons_test[:, :, t],
-                data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[:, :, t].min()
-            )
-            for t in range(num_test_snaps)
-            ]
-            psnr_values = psnr_snapshots  
-            print("psnr val: ", psnr_values)
 
-            #PSD
-            print("calc PSD")
-            psd_snapshots = power_spectral_density_error_time_series(u_fluc_full, u_recons_test, 3, test_indices, DNS=True, DNS_case=DNS_case)
-            print("PSD error: ", psd_error[j])
+    #SSIM
+    #print("calc SSIM")
+    ssim_snapshots = [
+        ssim(u_fluc_test[:, :, t], u_recons_test[:, :, t], data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[ :, :, t].min())
+    for t in range(num_test_snaps)
+    ]
+ 
+
+    #PSNR
+    #print("calc PSNR")
+    psnr_snapshots = [
+    psnr(
+        u_fluc_test[:, :, t],
+        u_recons_test[:, :, t],
+        data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[:, :, t].min()
+    )
+    for t in range(num_test_snaps)
+    ]
+
+
+    #PSD
+    #print("calc PSD")
+    psd_snapshots = power_spectral_density_error_time_series(u_fluc_full, u_recons_test, 3, test_indices, DNS=True, DNS_case=DNS_case)
+    #print("PSD error: ", psd_snapshots)
         
         
     return RMS_true, RMS_recons, mse_snapshots, ssim_snapshots, psnr_snapshots, psd_snapshots 
 
 
 
-def calculate_temporal_error_metrics_exp(case, r_new, u_fluc, vel_planes, num_sensors, SHRED_ensembles, experimental_ensembles, lags=52, forecast=False, add_surface=False, full_planes=True):
-    '''error vertically for one Tee ensemble case and one SHRED ensemble case at a time'''
-    '''Tee_ensembles: list is ensemble indices
-    SHRED_ensembles: list of SHRED ensemble indices'''
-    r=900
-    #teetank_ens=None
-    #case=None
-
-
- 
-
-    print("start ensemble looping")
-    #TODO! Add Teetank ensembles as an extra dimension to save!
-    RMS_ensembles_recons = np.zeros((len(SHRED_ensembles), len(vel_planes)))
-    RMS_ensembles_truth = np.zeros((len(SHRED_ensembles), len(vel_planes)))
+def calculate_temporal_error_metrics_exp(case, r_new, u_fluc, vel_plane, num_sensors, SHRED_ens, experimental_ens, lags=52, forecast=False, full_planes=True):
+    """
+    Compute per-snapshot error metrics for a SHRED reconstruction of
+    experimental velocity data.
     
-    for k in range(len(experimental_ensembles)):
+    ----------
+    Parameters
+    ----------
+    case
+        Experimental case label, e.g. E1 or E2 (passed through
+        ``utilities.case_name_converter`` internally).
+    r_new
+        Truncation rank *r* of the reduced SVD used during SHRED training.
+    u_fluc
+        Optional full-rank velocity field of shape ``(nx, ny, nt)``; if
+        ``None`` the field is loaded inside the helper.
+    vel_planes
+        List of plane indices **(1–5)** to analyse.  Each index is mapped to
+        the physical plane name ``['H395','H390','H375','H350','H300']``.
+    num_sensors
+        Number of surface sensors used by the SHRED model (needed only for
+        file-naming conventions).
+    SHRED_ens
+        Single integer identifying which SHRED ensemble run to evaluate.
+    experimental_ens
+        int 
+    lags
+        Length of the sliding window used during SHRED training (default 52).
+    forecast
+        If *True*, SHRED was trained in “forecast” mode; affects file paths.
+    full_planes
+        If *False*, SHRED was trained with only the specified plane; if *True*
+        the full 5-plane stack was used.  Determines plane indexing.
+
+    ----------
+    Returns
+    ----------
+    RMS_true : np.ndarray
+        Ground-truth RMS per snapshot (shape ``(n_test,)``).
+    RMS_recons : np.ndarray
+        Reconstructed RMS per snapshot.
+    mse_snapshots : np.ndarray
+        Normalised MSE for each snapshot.
+    ssim_snapshots : np.ndarray
+        SSIM values for each snapshot.
+    psnr_snapshots : np.ndarray
+        PSNR values (dB) for each snapshot.
+    psd_snapshots : np.ndarray
+        Normalised PSD error for each snapshot.
+
+
+    """
+
+    case = utilities.case_name_converter(case)
+
+
+    #open and reduce SVD matrices for the given Teetank ensemble
         
-        experimental_ens = experimental_ensembles[k]
-        #open and reduce SVD matrices for the given Teetank ensemble
-        
-
-        #continue below when I've fixed the above issue
-        for i in range(len(SHRED_ensembles)):
-            ensemble = SHRED_ensembles[i]
-            print("ensemble: ", ensemble)
-
-
-            for j in range(len(vel_planes)):
-                plane = vel_planes[j]
-                print("plane: ", plane)
-                planes = ['H395', 'H390', 'H375', 'H350', 'H300']
-                plane = planes[vel_planes[j]-1]
-                print("Plane: ", plane)
-                X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
-                #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-                V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, r_new, num_sensors, ensemble, vel_planes, DNS=False, exp_plane=plane, full_planes=full_planes, forecast=forecast)
-                num_test_snaps = len(test_indices)
-                #get SVDs correctly
-                U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, exp=True, plane=plane)
-
-                #at this point, I need my SVD matrices
-                surf_fluc=None
-                u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, case, r_new, 
-                                                                                                            ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=forecast, 
-                                                                                                            surface=False,no_input_u_fluc=True)
-
-                #calculate error metrics for this plane and ensemble case
-
-                #RMS 
-                u_recons = utilities.convert_3d_to_2d(u_recons_test)
-                u_truth = utilities.convert_3d_to_2d(u_fluc_test)
-
-                RMS_recons = utilities.RMS_plane(u_recons)
-                RMS_true =  utilities.RMS_plane(u_truth)
+       
+    plane = vel_plane
+    print("plane: ", plane)
+    planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+    plane = planes[vel_plane-1]
+    print("Plane: ", plane)
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
+    #open SHRED for this plane-surface-pairing, experimental ensemble and SHRED ensemble
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, r_new, num_sensors, SHRED_ens, [vel_plane], DNS=False, exp_plane=plane, full_planes=full_planes, forecast=forecast)
+    num_test_snaps = len(test_indices)
+    #get SVDs correctly
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, r_new, forecast=forecast, DNS_new=False, DNS_plane=None,
+                                                                                                       DNS_surf=False, exp=True, plane=plane)
 
 
-                #Mean squared error (MSE)
-                print("calc MSE")
-                mse = np.mean((u_truth - u_recons) ** 2, axis=(0))  # Mean over spatial and time dimensions
-                norm_factor = np.mean(u_truth ** 2, axis=(0))
-                mse_snapshots = mse / norm_factor
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, case, r_new, 
+                                                                                                SHRED_ens, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=forecast, 
+                                                                                                surface=False,no_input_u_fluc=True)
+
+    #calculate error metrics for this plane and ensemble case
+
+    #RMS 
+    u_recons = utilities.convert_3d_to_2d(u_recons_test)
+    u_truth = utilities.convert_3d_to_2d(u_fluc_test)
+
+    RMS_recons = utilities.RMS_plane(u_recons)
+    RMS_true =  utilities.RMS_plane(u_truth)
 
 
-                #SSIM
-                print("calc SSIM")
-                ssim_snapshots = [
-                    ssim(u_fluc_test[:, :, t], u_recons_test[:, :, t], data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[ :, :, t].min())
-                for t in range(num_test_snaps)
-                ]
-                #ssim_values = #np.mean(ssim_snapshots)
-                print("ssim_vals: ", ssim_snapshots)
+    #Mean squared error (MSE)
+    #print("calc MSE")
+    mse = np.mean((u_truth - u_recons) ** 2, axis=(0))  # Mean over spatial and time dimensions
+    norm_factor = np.mean(u_truth ** 2, axis=(0))
+    mse_snapshots = mse / norm_factor
 
-                #PSNR
-                print("calc PSNR")
-                psnr_snapshots = [
-                psnr(
-                    u_fluc_test[:, :, t],
-                    u_recons_test[:, :, t],
-                    data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[:, :, t].min()
-                )
-                for t in range(num_test_snaps)
-                ]
-                #psnr_values[j] = np.mean(psnr_snapshots)  # Average over time
-                print("psnr val: ", psnr_snapshots)
 
-                #PSD
-                print("calc PSD")
-                psd_snapshots = power_spectral_density_error_time_series(u_fluc_full, u_recons_test, 3, test_indices, DNS=False, DNS_case=None)
+    #SSIM
+    #print("calc SSIM")
+    ssim_snapshots = [
+        ssim(u_fluc_test[:, :, t], u_recons_test[:, :, t], data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[ :, :, t].min())
+    for t in range(num_test_snaps)
+    ]
+    #ssim_values = #np.mean(ssim_snapshots)
+    #print("ssim_vals: ", ssim_snapshots)
+
+    #PSNR
+    #print("calc PSNR")
+    psnr_snapshots = [
+    psnr(
+        u_fluc_test[:, :, t],
+        u_recons_test[:, :, t],
+        data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[:, :, t].min()
+    )
+    for t in range(num_test_snaps)
+    ]
+    #psnr_values[j] = np.mean(psnr_snapshots)  # Average over time
+    #print("psnr val: ", psnr_snapshots)
+
+    #PSD
+    #print("calc PSD")
+    psd_snapshots = power_spectral_density_error_time_series(u_fluc_full, u_recons_test, 3, test_indices, DNS=False, DNS_case=None)
         
            
 
