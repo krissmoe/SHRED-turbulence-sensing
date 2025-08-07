@@ -277,91 +277,123 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
 
 
 
-def plot_psd_compare(DNS_planes, exp_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
+def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
+    """
+    Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
+    and SHRED-reconstructed velocity fields for all cases
 
-    #must open shred for each case
+    ----------
+    Parameters
+    ----------
+    vel_planes
+        Four-element list giving the integer plane IDs to use for
+        S1, S2, E1, E2 **in that order**.
+        For the experiments, 1→'H395', 2→'H390', … 5→'H300'.
+    SHRED_ensembles
+        List ``[ens_S1, ens_S2, ens_E1, ens_E2]`` selecting which SHRED run
+        (seed) to load for each case.
+    experimental_ensembles
+        Two-element list ``[ens_P25, ens_P50]`` selecting which experimental
+        realisation (run) to plot for E1 and E2.
+    r_vals
+        Rank used in the reduced SVD for each case
+        ``[r_S1, r_S2, r_E1, r_E2]``.
+    num_sensors
+        Number of surface sensors used in every SHRED run
+        (important for file naming).
+
+    Returns
+    -------
+    None
+        The function is for plotting only, with a 4 panel 
+        plot saved as a pdf.
+
+    """
     
 
+    #plane name library for experiments
     planes = ['H395', 'H390', 'H375', 'H350', 'H300']
 
-
-    #case E1 (P25)
+    ##case E1 (P25) --------------------
         
-    plane = planes[exp_planes[0]-1]
+    plane = planes[vel_planes[2]-1]
     X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P25', plane)
     #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], plane, DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
-    num_test_snaps = len(test_indices)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
     #get SVDs correctly
     U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[0], 'P25', 900, r_vals[2], forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, exp=True, exp_plane=plane)
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
     surf_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25',900, r_vals[2], 
-                                                                                                            SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25', r_vals[2], 
+                                                                                                            SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
-    gt_fft_p25, recon_fft_p25, k_vals_p25 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False, DNS_case='RE2500')
-    gt_fft, svd_fft_p25, k_vals_p25 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False, DNS_case='RE2500')
-    spectral_max_p25=np.amax(gt_fft_p25)
-    gt_psd_p25 = gt_fft_p25/spectral_max_p25
-    recon_psd_p25 = recon_fft_p25/spectral_max_p25
-    svd_psd_p25 = svd_fft_p25/spectral_max_p25
+    gt_fft_E1, recon_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E1=np.amax(gt_fft_E1)
+    gt_psd_E1 = gt_fft_E1/spectral_max_E1
+    recon_psd_E1 = recon_fft_E1/spectral_max_E1
+    svd_psd_E1 = svd_fft_E1/spectral_max_E1
     integral_length_scale=0.051
-    k_vals_p25 = integral_length_scale*k_vals_p25
-    k_cutoff_p25 = k_vals_p25[7]
+    k_vals_E1 = integral_length_scale*k_vals_E1
+    k_cutoff_E1 = k_vals_E1[7]
+    print("cutoff normalized wavenumber k for case E1: ", k_cutoff_E1)
     
 
-    #case E2 (P50)
+    #case E2 (P50) ------------------------------
 
-    plane = planes[exp_planes[1]-1]
+    plane = planes[vel_planes[3]-1]
     X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P50', plane)
     #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], plane, DNS=False,  plane=plane, full_planes=True, forecast=False)
-    num_test_snaps = len(test_indices)
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
     #get SVDs correctly
     U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[1], 'P50', 900, r_vals[3], forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, exp=True, Tee_plane=plane)
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
     surf_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_Teetank(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50',900, r_vals[3], 
-                                                                                                            SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=52, forecast=False, 
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50', r_vals[3], 
+                                                                                                            SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
                                                                                                             surface=False,no_input_u_fluc=True)
-    gt_fft_p50, recon_fft_p50, k_vals_p50 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False, DNS_case='RE2500')
-    gt_fft, svd_fft_p50, k_vals_p50 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False, DNS_case='RE2500')
-    spectral_max_p50=np.amax(gt_fft_p50)
-    gt_psd_p50 = gt_fft_p50/spectral_max_p50
-    recon_psd_p50 = recon_fft_p50/spectral_max_p50
-    svd_psd_p50 = svd_fft_p50/spectral_max_p50
+    gt_fft_E2, recon_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E2=np.amax(gt_fft_E2)
+    gt_psd_E2 = gt_fft_E2/spectral_max_E2
+    recon_psd_E2 = recon_fft_E2/spectral_max_E2
+    svd_psd_E2 = svd_fft_E2/spectral_max_E2
     integral_length_scale=0.068
-    k_vals_p50 = integral_length_scale*k_vals_p50
-    k_cutoff_p50 = k_vals_p50[7]
+    k_vals_E2 = integral_length_scale*k_vals_E2
+    k_cutoff_E2 = k_vals_E2[7] 
+    print("cutoff normalized wavenumber k for case E2: ", k_cutoff_E2)
+    
+    #DNS case S1 (RE1000) ----------------------------------
 
-    #DNS case S1 (RE1000)
-
-    stack_planes=[DNS_planes[0]] 
-    plane = DNS_planes[0]
+    stack_planes=[vel_planes[0]] 
+    plane = vel_planes[0]
     integral_length_scale=utilities.get_integral_length_scale('RE1000')
     U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
-    print("end stacking SVD")
+  
     #then iterate SHRED ensembles
     V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
                                                                      full_planes=True, forecast=False)
     u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE1000', plane, 1, None, V_tot_recons, test_indices, r_vals[0], 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
-    gt_fft_RE1000, recon_fft_RE1000, k_vals_RE1000 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE1000')
-    gt_fft, svd_fft_RE1000, k_vals_RE1000 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE1000')
-    spectral_max_RE1000=np.amax(gt_fft_RE1000)
-    gt_psd_RE1000 = gt_fft_RE1000/spectral_max_RE1000
-    recon_psd_RE1000 = recon_fft_RE1000/spectral_max_RE1000
-    svd_psd_RE1000 = svd_fft_RE1000/spectral_max_RE1000
-    k_vals_RE1000 = integral_length_scale*k_vals_RE1000
-    k_cutoff_RE1000 = k_vals_RE1000[13]
+    gt_fft_S1, recon_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE1000')
+    gt_fft, svd_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE1000')
+    spectral_max_S1=np.amax(gt_fft_S1)
+    gt_psd_S1 = gt_fft_S1/spectral_max_S1
+    recon_psd_S1 = recon_fft_S1/spectral_max_S1
+    svd_psd_S1 = svd_fft_S1/spectral_max_S1
+    k_vals_S1 = integral_length_scale*k_vals_S1
+    k_cutoff_S1 = k_vals_S1[13]
+    print("cutoff normalized wavenumber k for case S1: ", k_cutoff_S1)
     
-    #DNS case S2 (RE2500)
+    #DNS case S2 (RE2500) -----------------------------------
     
-    stack_planes=[DNS_planes[1]] 
-    plane = DNS_planes[1]
+    stack_planes=[vel_planes[1]] 
+    plane = vel_planes[1]
     U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
-    print("end stacking SVD")
+    
     #then iterate SHRED ensembles
 
     V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE2500', r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
@@ -371,15 +403,16 @@ def plot_psd_compare(DNS_planes, exp_planes, SHRED_ensembles, experimental_ensem
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
     integral_length_scale=utilities.get_integral_length_scale('RE2500')
-    gt_fft_RE2500, recon_fft_RE2500, k_vals_RE2500 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE2500')
-    gt_fft, svd_fft_RE2500, k_vals_RE2500 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE2500')
-    spectral_max_RE2500=np.amax(gt_fft_RE2500)
-    gt_psd_RE2500 = gt_fft_RE2500/spectral_max_RE2500
-    recon_psd_RE2500 = recon_fft_RE2500/spectral_max_RE2500
-    svd_psd_RE2500 = svd_fft_RE2500/spectral_max_RE2500
-    k_vals_RE2500 = integral_length_scale*k_vals_RE2500
-    k_cutoff_RE2500 = k_vals_RE2500[11]
+    gt_fft_S2, recon_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE2500')
+    gt_fft, svd_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE2500')
+    spectral_max_S2=np.amax(gt_fft_S2)
+    gt_psd_S2 = gt_fft_S2/spectral_max_S2
+    recon_psd_S2 = recon_fft_S2/spectral_max_S2
+    svd_psd_S2 = svd_fft_S2/spectral_max_S2
+    k_vals_S2 = integral_length_scale*k_vals_S2
+    k_cutoff_S2 = k_vals_S2[11]
 
+    print("cutoff normalized wavenumber k for case S2: ", k_cutoff_S2)
 
     #Plot figures
     fig = plt.figure(figsize=(14, 10))
@@ -394,53 +427,53 @@ def plot_psd_compare(DNS_planes, exp_planes, SHRED_ensembles, experimental_ensem
     
     #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
     #ax2.tick_params(axis='y', labelcolor='r')
-    ax1.loglog(k_vals_RE1000, gt_psd_RE1000, linestyle='-', color='k', label='Ground truth')
-    ax1.loglog(k_vals_RE1000, svd_psd_RE1000, linestyle='dashdot', color='darkred', label='SVD')
-    ax1.loglog(k_vals_RE1000, recon_psd_RE1000, linestyle='--', color='blue', label='Recons')
-    ax1.plot([k_cutoff_RE1000, k_cutoff_RE1000], [1e-3,3], linestyle='-', color='darkviolet')
+    ax1.loglog(k_vals_S1, gt_psd_S1, linestyle='-', color='k', label='Ground truth')
+    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='SVD')
+    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='Recons')
+    ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
     ax1.set_ylabel('PSD', fontsize=15)
     ax1.grid()
     ax1.legend(fontsize=13)
     ax1.set_ylim(1e-3, 3)
-    ax1.set_xlim(k_vals_RE1000[0], 11)
+    ax1.set_xlim(k_vals_S1[0], 11)
     ax1.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     ax2 = fig.add_subplot(gs[0, 1])
-    ax2.loglog(k_vals_RE2500, gt_psd_RE2500, linestyle='-', color='k', label='Ground truth')
-    ax2.loglog(k_vals_RE2500, svd_psd_RE2500, linestyle='dashdot', color='darkred', label='SVD')
-    ax2.loglog(k_vals_RE2500, recon_psd_RE2500, linestyle='--', color='blue', label='Recons')
-    ax2.plot([k_cutoff_RE2500, k_cutoff_RE2500], [1e-3,3], linestyle='-', color='darkviolet')
+    ax2.loglog(k_vals_S2, gt_psd_S2, linestyle='-', color='k', label='Ground truth')
+    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='SVD')
+    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='Recons')
+    ax2.plot([k_cutoff_S2, k_cutoff_S2], [1e-3,3], linestyle='-', color='darkviolet')
     #ax2.set_ylabel('PSD', fontsize=15)
     ax2.grid()
     ax2.legend(fontsize=13)
     ax2.set_ylim(1e-3, 3)
-    ax2.set_xlim(k_vals_RE2500[0], 11)
+    ax2.set_xlim(k_vals_S2[0], 11)
     ax2.set_xlabel("$k L_{\infty}$", fontsize=15)
 
 
 
     ax3 = fig.add_subplot(gs[1,0])
-    ax3.loglog(k_vals_p25, gt_psd_p25, linestyle='-', color='k', label='Ground truth')
-    ax3.loglog(k_vals_p25, svd_psd_p25, linestyle='dashdot', color='darkred', label='SVD')
-    ax3.loglog(k_vals_p25, recon_psd_p25, linestyle='--', color='blue', label='Recons')
-    ax3.plot([k_cutoff_p25, k_cutoff_p25], [1e-3,3], linestyle='-', color='darkviolet')
+    ax3.loglog(k_vals_E1, gt_psd_E1, linestyle='-', color='k', label='Ground truth')
+    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='SVD')
+    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='Recons')
+    ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
     ax3.set_ylabel('PSD', fontsize=15)
     ax3.grid()
     ax3.legend(fontsize=13)
     ax3.set_ylim(1e-3, 3)
-    ax3.set_xlim(k_vals_p25[0], 11)
+    ax3.set_xlim(k_vals_E1[0], 11)
     ax3.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     ax4= fig.add_subplot(gs[1,1])
-    ax4.loglog(k_vals_p50, gt_psd_p50, linestyle='-', color='k', label='Ground truth')
-    ax4.loglog(k_vals_p50, svd_psd_p50, linestyle='dashdot', color='darkred', label='SVD')
-    ax4.loglog(k_vals_p50, recon_psd_p50, linestyle='--', color='blue', label='Recons')
-    ax4.plot([k_cutoff_p50, k_cutoff_p50], [1e-3,3], linestyle='-', color='darkviolet')
+    ax4.loglog(k_vals_E2, gt_psd_E2, linestyle='-', color='k', label='Ground truth')
+    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='SVD')
+    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='Recons')
+    ax4.plot([k_cutoff_E2, k_cutoff_E2], [1e-3,3], linestyle='-', color='darkviolet')
     #ax4.set_ylabel('PSD', fontsize=15)
     ax4.grid()
     ax4.legend(fontsize=13)
     ax4.set_ylim(1e-3, 3)
-    ax4.set_xlim(k_vals_p50[0], 11)
+    ax4.set_xlim(k_vals_E2[0], 11)
     ax4.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     for ax in [ax1, ax2, ax3, ax4]:
