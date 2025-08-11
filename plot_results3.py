@@ -9,6 +9,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 #TODO: fix file name dependency
+
+#DONE
 def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins, labels = None, nx=256, ny=256, nt=12500, rank=100, name="surf"):
     """
     Visualize spatial/temporal SVD modes together with singular values and
@@ -171,7 +173,7 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
 
 
-#done
+#DONE
 def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
     '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
      
@@ -219,7 +221,7 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
 
 
 
-#done
+#DONE
 def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
     '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
      
@@ -276,7 +278,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
 
 
 
-
+#DONE
 def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
     """
     Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
@@ -428,8 +430,8 @@ def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals
     #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
     #ax2.tick_params(axis='y', labelcolor='r')
     ax1.loglog(k_vals_S1, gt_psd_S1, linestyle='-', color='k', label='Ground truth')
-    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='SVD')
-    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='Recons')
+    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='SHRED recons')
     ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
     ax1.set_ylabel('PSD', fontsize=15)
     ax1.grid()
@@ -440,8 +442,8 @@ def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals
 
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.loglog(k_vals_S2, gt_psd_S2, linestyle='-', color='k', label='Ground truth')
-    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='SVD')
-    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='Recons')
+    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='SHRED recons')
     ax2.plot([k_cutoff_S2, k_cutoff_S2], [1e-3,3], linestyle='-', color='darkviolet')
     #ax2.set_ylabel('PSD', fontsize=15)
     ax2.grid()
@@ -454,8 +456,8 @@ def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals
 
     ax3 = fig.add_subplot(gs[1,0])
     ax3.loglog(k_vals_E1, gt_psd_E1, linestyle='-', color='k', label='Ground truth')
-    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='SVD')
-    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='Recons')
+    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='SHRED recons')
     ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
     ax3.set_ylabel('PSD', fontsize=15)
     ax3.grid()
@@ -466,8 +468,8 @@ def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals
 
     ax4= fig.add_subplot(gs[1,1])
     ax4.loglog(k_vals_E2, gt_psd_E2, linestyle='-', color='k', label='Ground truth')
-    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='SVD')
-    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='Recons')
+    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='SHRED recons')
     ax4.plot([k_cutoff_E2, k_cutoff_E2], [1e-3,3], linestyle='-', color='darkviolet')
     #ax4.set_ylabel('PSD', fontsize=15)
     ax4.grid()
@@ -493,43 +495,13 @@ def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals
 
 
 
-def plot_recon_compare(surf_height, flow_surf, flow_depth, rank, nt):
-    """
-    Compare snapshots from the reconstructed data with original data and compressed data
-    """
-    #import matplotlib.pyplot as plt
-    import cmocean
+def plot_psd_rank_comparison(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
+    
+    case = utilities.case_name_converter(case)
 
-    row1 = [surf_height[0], surf_height[1], surf_height[2]]  # First row
-    row2 = [flow_surf[0], flow_surf[1], flow_surf[2]]  # Second row
-    row3 = [flow_depth[0], flow_depth[1], flow_depth[2]]  # Third row
-    #L_int_ind = 5  # Example index for flow slices
-    # Organize data into rows for easy plotting
-    #row1 = [surf_full, surf_compr, surf_recon]
-    #row1 = [surf_height[:, :, 0], flow_compr[:, :, 0], flow_recon[:, :, 0]]
-    #row2 = [flow_full[:, :, 0], flow_compr[:, :, 0], flow_recon[:, :, 0]]
-    #row2 = [flow_full[:, :, 2], flow_compr[:, :, 2], flow_recon[:, :, 2]]
-    #row3 = [flow_full[:, :, L_int_ind], flow_compr[:, :, L_int_ind], flow_recon[:, :, L_int_ind]]
-    all_rows = [row1, row2, row3]
-
-    # Plot each snapshot in the grid
-    spacing = 0.1
-    fig, axs = plt.subplots(3, 3, figsize=(15, 15),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-    #fig.subplots_adjust(wspace=spacing, hspace=spacing)
-    cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
-    for i, row in enumerate(all_rows):
-        for j, snapshot in enumerate(row):
-            ax = axs[i, j]
-            ax.imshow(snapshot, cmap=cmaps[i], interpolation='bilinear', aspect='auto')
-            ax.axis('off')
-
-    # Adjust layout and display the plot
-   # plt.tight_layout()
-    plt.show()
-
-    plt.savefig("compare_recon_rank"+str(rank)+"_nt"+str(nt)+".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
-
-
+    psd_ground_truth, psd_compr, psd_recon, k_vals = processdata.calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens)
+    
+    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, labels_recon=None, labels_compr=None, split_rank=split_rank, rank_list=r_vals)
 
 
 def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_recon=None, labels_compr=None, split_rank=0, rank_list=None):
@@ -575,11 +547,11 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_r
     fig, axs = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
 
     # Define function to use for insets in the plots
-    def add_inset(ax, psd_recon, psd_compr, psd_ground_truth, k_bins, start_idx, end_idx, color_list):
+    def add_inset(ax, psd_recon, psd_compr, psd_ground_truth, k_bins, start_idx, end_idx, color_list, ymin):
         """
         Adds a zoomed-in inset to the given subplot.
         """
-        inset = inset_axes(ax, width="35%", height="35%", loc='lower left',
+        inset = inset_axes(ax, width="45%", height="52%", loc='lower left',
                            bbox_to_anchor=(0.1, 0.1, 1, 1), bbox_transform=ax.transAxes)
         next(ax._get_lines.prop_cycler)['color']
         for i in range(start_idx, end_idx):
@@ -587,66 +559,72 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_r
             print(i-start_idx, len(color_list))
             color = color_list[i-start_idx]#next(ax._get_lines.prop_cycler)['color']
             inset.plot(k_bins[:2], psd_recon[i, :2], linestyle='-', linewidth=1.5, color=color)
-            inset.plot(k_bins[:2], psd_compr[i, :2], linestyle='--', linewidth=1.5, color=color)
-        inset.plot(k_bins[:2], psd_ground_truth[:2], linestyle='-.', linewidth=2, color='black')
+            inset.plot(k_bins[:2], psd_compr[i, :2], linestyle='--', marker='*', linewidth=1.5, color=color)
+        inset.plot(k_bins[:2], psd_ground_truth[:2], linestyle='-', linewidth=2, color='black')
         inset.set_xlim(k_bins[0], k_bins[1])
-        inset.set_ylim(min(psd_recon[:, :2].min(), psd_compr[:, :2].min(), psd_ground_truth[:2].min()) * 0.8,
-                       max(psd_recon[:, :2].max(), psd_compr[:, :2].max(), psd_ground_truth[:2].max()) * 1.2)
+        inset.set_ylim(ymin, 1)
         inset.set_xscale('log')
         inset.set_yscale('log')
-        inset.tick_params(axis='both', which='both', labelsize=10)
+        inset.tick_params(axis='both', which='both', labelsize=12)
         inset.grid(True, which="both", linestyle="--", linewidth=0.3)
 
     # Panel 1: First half of PSDs
     next(axs[0]._get_lines.prop_cycler)['color'] # Skip first color
     color_list = []
+    axs[0].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
     for i in range(split_idx):
         color = next(axs[0]._get_lines.prop_cycler)['color']
         color_list.append(color)
-        label_recon = labels_recon[i] if labels_recon else f"Reconstructed {i+1}"
-        label_compr = labels_compr[i] if labels_compr else f"Compressed {i+1}"
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
         axs[0].loglog(k_bins, psd_recon[i, :], label=label_recon, linestyle='-', linewidth=1.5, color=color)
-        axs[0].loglog(k_bins, psd_compr[i, :], label=label_compr, linestyle='--', linewidth=1.5, color=color)
+        axs[0].loglog(k_bins, psd_compr[i, :], label=label_compr, linestyle='--', marker='*',linewidth=1.5, color=color)
 
-    axs[0].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-.', linewidth=2, color='black')
-    axs[0].set_ylim(1e-8, 2)
-    axs[0].set_xlabel("Dimensionless Wavenumber $kL$")
-    axs[0].set_ylabel("Normalized Power Spectral Density")
-    axs[0].legend()
+
+    axs[0].set_ylim(1e-3, 1.01)
+    axs[0].set_xlim(k_bins[0], 11)
+    axs[0].set_xlabel("Dimensionless Wavenumber $kL$", fontsize=15)
+    axs[0].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[0].legend(fontsize=14, loc='upper right')
     axs[0].grid(True, which="both", linestyle="--", linewidth=0.3)
+    axs[0].tick_params(axis='both', which='both', labelsize=13)
+        
 
     # Add inset to the first panel
-    add_inset(axs[0], psd_recon, psd_compr, psd_ground_truth, k_bins, 0, split_idx, color_list)
+    add_inset(axs[0], psd_recon, psd_compr, psd_ground_truth, k_bins, 0, split_idx, color_list, ymin=6e-1)
 
     # Panel 2: Second half of PSDs
     next(axs[1]._get_lines.prop_cycler)['color'] # Skip first color
     color_list = []
+    
+    axs[1].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
     for i in range(split_idx, n_psds):
         color = next(axs[1]._get_lines.prop_cycler)['color']
         color_list.append(color)
-        label_recon = labels_recon[i] if labels_recon else f"Reconstructed {i+1}"
-        label_compr = labels_compr[i] if labels_compr else f"Compressed {i+1}"
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
         axs[1].loglog(k_bins, psd_recon[i, :], label=label_recon,linestyle='-', linewidth=1.5, color=color)
-        axs[1].loglog(k_bins, psd_compr[i, :], label=label_compr,linestyle='--', linewidth=1.5, color=color)
+        axs[1].loglog(k_bins, psd_compr[i, :], label=label_compr,linestyle='--', marker='*', linewidth=1.5, color=color)
 
-    axs[1].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-.', linewidth=2, color='black')
-    axs[1].set_ylim(1e-8, 2)
-    axs[1].set_xlabel("Dimensionless Wavenumber $kL$")
-    axs[1].set_ylabel("Normalized Spectral Density")
-    axs[1].legend()
+    
+    axs[1].set_ylim(1e-3, 1.01)
+    axs[1].set_xlim(k_bins[0], 11)
+    axs[1].set_xlabel("Dimensionless Wavenumber $kL$", fontsize=15)
+    axs[1].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[1].legend(fontsize=14, loc='upper right')
     axs[1].grid(True, which="both", linestyle="--", linewidth=0.3)
-
+    axs[1].tick_params(axis='both', which='both', labelsize=13)
     # Add inset to the second panel
-    add_inset(axs[1], psd_recon, psd_compr, psd_ground_truth, k_bins, split_idx, n_psds, color_list)
+    add_inset(axs[1], psd_recon, psd_compr, psd_ground_truth, k_bins, split_idx, n_psds, color_list, ymin=6e-1)
 
             
     # Save and display the plot
-    plt.savefig("psd_comparison.eps", format='eps', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig("psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
 
 
-
+#DONE
 def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None):
     """
     Build the “four-case” figure that compares depth-dependent SHRED
@@ -742,160 +720,24 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
 
     #extract ensemble-avg error metrics from experiments
     RMS_recons_avg_exp1, RMS_true_avg_exp1, mse_avg_exp1, ssim_avg_exp1, psnr_avg_exp1, psd_avg_exp1, std_RMS_recons_exp1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case1, 
-        ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, lags=52, forecast=False, full_planes=full_planes_exp)
+        ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, forecast=False, full_planes=full_planes_exp)
 
     RMS_recons_avg_exp2, RMS_true_avg_exp2, mse_avg_exp2, ssim_avg_exp2, psnr_avg_exp2, psd_avg_exp2, std_RMS_recons_exp2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
-        ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, lags=52, forecast=False, full_planes=full_planes_exp)
+        ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, forecast=False, full_planes=full_planes_exp)
 
     std_RMS_recons_exp1=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp1 # np.zeros(5)
     std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2
 
     #the plotter for all four cases S1, S2, E1, E2, all together
-    plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, None, colors,
+    plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, colors,
     z1, z2, z1_exp, z2_exp, RMS_z1, RMS_z2, RMS_exp_z1, RMS_exp_z2, RMS_recons_avg_1, RMS_recons_avg_2, RMS_recons_avg_exp1, RMS_recons_avg_exp2, 
     std_RMS_recons_1, std_RMS_recons_2, std_RMS_recons_exp1, std_RMS_recons_exp2, mse_avg_1, mse_avg_2, mse_avg_exp1, mse_avg_exp2, psd_avg_1, psd_avg_2, psd_avg_exp1, psd_avg_exp2, 
     ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm)
 
 
-        
-def plot_error_metrics_per_case(DNS_case, k_index, color_curve,
-    depth, rms_u_gt, rms_u_recon, std_rms_u, rms_w_gt, rms_w_recon,
-    rms_vort_x_gt, rms_vort_x_recon, rms_vort_z_gt, rms_vort_z_recon,
-    nmse_data, std_nmse, psd_data, std_psd, ssim_data, std_ssim,  psnr_data, std_psnr, fig=None, gs=None
-):
-    #TODO: Make plots here to error plots, remove mid panels
-    #also make another function that calculates the ensembled averages and std_values
-    #also a function to extract the right z values in z axis given a plane
-    """
-    Plots depth-dependent error metrics in an 8-panel layout.
 
-    Parameters:
-        depth: array-like, depth values (z-axis, positive downward).
-        rms_u_gt, rms_u_recon: RMS of u-velocity for ground truth and reconstruction.
-        rms_w_gt, rms_w_recon: RMS of w-velocity for ground truth and reconstruction (can be None).
-        rms_vort_x_gt, rms_vort_x_recon: RMS vorticity (x-component) for ground truth and reconstruction (can be None).
-        rms_vort_z_gt, rms_vort_z_recon: RMS vorticity (z-component) for ground truth and reconstruction (can be None).
-        nmse_data: Normalized Mean Squared Error.
-        psd_data: Power Spectral Density Error.
-        ssim_data: Structural Similarity Index Measure.
-        psnr_data: Peak Signal-to-Noise Ratio.
-        std_xxx : standard deviation for the ensembled signals
-    """
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "sans-serif",
-    })
-    # Helper function for single-curve panels
-    def plot_single_curve(ax, data, depth, err, label, xlabel, color_curve):
-
-        lower_bound = data - err
-        upper_bound = data + err
-
-        if len(data)>30:
-            marker1=None
-            ax.plot(data, depth, linestyle='-', marker=marker1, color=color_curve, label=label)
-            #ax.fill_betweenx(depth, lower_bound, upper_bound,color=color_curve,alpha=0.2)
-            
-        else:
-            marker1='o'
-            ax.errorbar(data, depth, xerr = err, linestyle='-', marker=marker1, label=label, capsize=3, errorevery=3)
-        
-        
-        
-        #ax.plot(data, depth, linestyle='-', marker='o', label=label)
-        #ax.invert_yaxis()
-        ax.set_xlabel(xlabel)
-
-    # Helper function for two-curve panels
-    def plot_two_curves(ax, data1, data2, depth, err2, labels, xlabel, color_curve):
-
-        lower_bound = data2 - err2
-        upper_bound = data2 + err2
-        if len(data2)>30:
-            marker1=None
-            marker2=None
-            ax.plot(data2, depth, linestyle='-', marker=marker2, color=color_curve, label=labels[1])
-            ax.fill_betweenx(depth, lower_bound, upper_bound,color=color_curve,alpha=0.2)
-        else:
-            marker2='s'
-            marker1 ='o'
-            ax.errorbar(data2, depth, xerr = err2, linestyle='-', marker=marker1, label=labels[1], capsize=3, errorevery=1)
-
-
-
-        #ax.errorbar(data2, depth, xerr = err2, linestyle='-', marker=marker1, label=labels[1], capsize=3, errorevery=1)
-    
-        ax.plot(data1, depth, linestyle='--', marker=marker1, color=color_curve, label=labels[0])
-        
-       
-        #ax.invert_yaxis()
-        ax.set_xlabel(xlabel)
-        ax.legend()
-
-    # Create a figure and use GridSpec for layout
-    if fig==None:
-        fig = plt.figure(figsize=(14, 15))
-        gs = GridSpec(3, 2, figure=fig, hspace=0.2, wspace=0.1)
-    
-
-    # Row 1: RMS for u and w
-    ax1 = fig.add_subplot(gs[0, 0])
-    plot_two_curves(ax1, rms_u_gt, rms_u_recon, depth, err2=std_rms_u, labels=['Ground Truth' +DNS_case, 'Recons' + DNS_case], xlabel='u RMS ', color_curve=color_curve)
-
-    ax2 = fig.add_subplot(gs[0, 1])
-    if rms_w_gt is not None and rms_w_recon is not None:
-        print("REMEMBER TO FIX ERROR INPUT")
-        plot_two_curves(ax2, rms_w_gt, rms_w_recon, depth, labels=['Ground Truth' + DNS_case, 'Recons' + DNS_case], xlabel='None', color_curve=color_curve)
-    else:
-        ax2.text(0.5, 0.5, 'To be filled/removed', ha='center', va='center', transform=ax2.transAxes)
-        ax2.invert_yaxis()
-        ax2.set_xlabel('RMS')
-
-    # Row 2: RMS Vorticity for x and z components
-    #ax3 = fig.add_subplot(gs[1, 0])
-    #if rms_vort_x_gt is not None and rms_vort_x_recon is not None:
-    #    plot_two_curves(ax3, rms_vort_x_gt, rms_vort_x_recon, depth, labels=['Ground Truth', 'Reconstruction'], xlabel='RMS Vorticity (x)')
-    #else:
-    #    ax3.text(0.5, 0.5, 'Vorticity not computed', ha='center', va='center', transform=ax3.transAxes)
-    #    ax3.invert_yaxis()
-    #    ax3.set_xlabel('RMS Vorticity (x)')
-
-    #ax4 = fig.add_subplot(gs[1, 1])
-    #if rms_vort_z_gt is not None and rms_vort_z_recon is not None:
-    #    plot_two_curves(ax4, rms_vort_z_gt, rms_vort_z_recon, depth, labels=['Ground Truth', 'Reconstruction'], xlabel='RMS Vorticity (z)')
-    #else:
-    #    ax4.text(0.5, 0.5, 'Vorticity not computed', ha='center', va='center', transform=ax4.transAxes)
-    #    ax4.invert_yaxis()
-    #    ax4.set_xlabel('RMS Vorticity (z)')
-
-    # Row 3: NMSE and PSD Error
-    ax5 = fig.add_subplot(gs[1, 0])
-    plot_single_curve(ax5, nmse_data, depth, err=std_nmse, label=DNS_case, xlabel='Normalized Mean Squared Error', color_curve=color_curve)
-
-    ax6 = fig.add_subplot(gs[1, 1])
-    plot_single_curve(ax6, psd_data, depth, err=std_psd, label=DNS_case, xlabel='Power Spectral Density Error', color_curve=color_curve)
-
-    # Row 4: SSIM and PSNR
-    ax7 = fig.add_subplot(gs[2, 0])
-    plot_single_curve(ax7, ssim_data, depth, err=std_ssim, label=DNS_case, xlabel='SSIM', color_curve=color_curve)
-
-    ax8 = fig.add_subplot(gs[2, 1])
-    plot_single_curve(ax8, psnr_data, depth, err=std_psnr, label=DNS_case, xlabel='PSNR', color_curve=color_curve)
-
-    # Adjust layout
-
-    if k_index==1:
-        fig.tight_layout()
-        plt.show()
-        adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_" + DNS_case
-        filename = adr_loc_3 + "error_metrics"
-        filename2 = filename + ".png"
-        fig.savefig(filename2)
-        fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1)
-    return fig, gs
-
-
-def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_case2, k_index, colors,
+#DONE
+def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
     std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
     ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None
@@ -923,11 +765,11 @@ def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_c
 
     #make z_label:
     if z_norm=='taylor':
-        z_label='$z/L_{\lambda}$'
+        z_label='$\overline{z}/L_{\lambda}$'
     elif z_norm == 'int':
-        z_label='$z/L_{\infty}$'
+        z_label='$\overline{z}/L_{\infty}$'
     elif z_norm=='mixed':
-        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
+        z_label='$\overline{z}/(L_{\lambda} L_{\infty})^{1/2}$'  
     else:
         z_label = None
       
@@ -988,22 +830,19 @@ def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_c
             ax.plot(data2_recons, depth2, linestyle='dashdot', marker=marker2, color=colors[1], label=labels2[1])
             ax.fill_betweenx(depth2, lower_bound2, upper_bound2,color=colors[1],alpha=0.2)
             ax.plot(data2_truth, depth2, linestyle='-', marker=marker1, color=colors[1], label=labels2[0])
+            #ax.set_xlabel(r'(a) $\langle u_{\mathrm{RMS}}\rangle$, Cases S1 \& S2')
             if z_label != None:
                 ax.set_ylabel(z_label, fontsize=21)
-            #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
+
         
         else:
-            #marker2='s'
-            #marker1 ='o'
-            #ax.errorbar(data2, depth, xerr = err2, linestyle='-', marker=marker1, label=labels[1], capsize=3, errorevery=1)
-            #activate when P25 is ready
+
             ax.plot(data1_truth, depth1, marker='D', color=colors[2], label=labels1[0])
             ax.plot(data2_truth, depth2, marker='D', color=colors[3], label=labels2[0])
             ax.errorbar(data1_recons, depth1, xerr = err1_recons, linestyle='dashdot', fmt='o', color=colors[2],label=labels1[1], capsize=2, errorevery=1)
             ax.errorbar(data2_recons, depth2, xerr=err2_recons, linestyle='dashdot', fmt='o', color=colors[3],label=labels2[1], capsize=2, errorevery=1)
-            #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
-            #ax.plot(data1_truth, depth1, marker='D', color=colors[2], label=labels1[0])
-            #ax.plot(data2_truth, depth2, marker='D', color=colors[3], label=labels2[0])
+            #ax.set_xlabel(r'(b) $\langle u_{\mathrm{RMS}}\rangle$, Cases E1 \& E2')
+            
             if z_label != None:
                 ax.set_ylabel(z_label, fontsize=21)
         if z_tics:
@@ -1030,68 +869,48 @@ def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_c
     # Create a figure and use GridSpec for layout
     if fig==None:
         fig = plt.figure(figsize=(14, 15))
-        gs = GridSpec(3, 2, figure=fig, hspace=0.2, wspace=0.1)
+        plt.rcParams["text.usetex"]=True
+        gs = GridSpec(3, 2, figure=fig, hspace=0.3, wspace=0.1)
     
 
-    # Row 1: RMS for u and w
+    # Row 1: u_RMS for S1 & S2 (left) and E1 & E2 (right)
     ax1 = fig.add_subplot(gs[0, 0])
-    labels1=['Ground Truth S1', 'Recons S2']
-    labels2=['Ground Truth S2', 'Recons S2']
+    labels1=['Ground truth, S1', 'Recons, S2']
+    labels2=['Ground truth, S2', 'Recons, S2']
     plot_two_curves(ax1, rms_u_gt_1, rms_u_recon_1, rms_u_gt_2, rms_u_recon_2, depth1, depth2, err1_recons=std_rms_u_1, err2_recons=std_rms_u_2,
-                     labels1=labels1, labels2=labels2, xlabel='(a) RMS u cases S1 \& S2', colors=colors, DNS=True, z_label=z_label)
+                     labels1=labels1, labels2=labels2, xlabel='(a) $<u_{RMS}>$, Cases S1 \& S2', colors=colors, DNS=True, z_label=z_label)
+
 
     ax2 = fig.add_subplot(gs[0, 1])
-    #if rms_w_gt is not None and rms_w_recon is not None:
-    #    print("REMEMBER TO FIX ERROR INPUT")
-    #    plot_two_curves(ax2, rms_w_gt, rms_w_recon, depth, labels=['Ground Truth' + DNS_case, 'Recons' + DNS_case], xlabel='None', color_curve=color_curve, z_label=z_label)
-    labels3=['Ground Truth E1', 'Recons E1']
-    labels4=['Ground Truth E2', 'Recons E2']
+    labels3=['Ground truth, E1', 'Recons, E1']
+    labels4=['Ground truth, E2', 'Recons, E2']
     
     plot_two_curves(ax2, rms_u_gt_3, rms_u_recon_3, rms_u_gt_4, rms_u_recon_4, depth3, depth4, err1_recons=std_rms_u_3, err2_recons=std_rms_u_4,
-                     labels1=labels3, labels2=labels4, xlabel='(b) RMS u cases E1 \& E2', colors=colors, DNS=False, z_label=None, z_tics=False)
-    #ax2.text(0.5, 0.5, 'To be filled/removed', ha='center', va='center', transform=ax2.transAxes)
-    #ax2.invert_yaxis()
-    #ax2.set_xlabel('u RMS')
+                     labels1=labels3, labels2=labels4, xlabel='(b) $<u_{RMS}>$, Cases E1 \& E2', colors=colors, DNS=False, z_label=None, z_tics=False)
 
-    # Row 2: RMS Vorticity for x and z components
-    #ax3 = fig.add_subplot(gs[1, 0])
-    #if rms_vort_x_gt is not None and rms_vort_x_recon is not None:
-    #    plot_two_curves(ax3, rms_vort_x_gt, rms_vort_x_recon, depth, labels=['Ground Truth', 'Reconstruction'], xlabel='RMS Vorticity (x)')
-    #else:
-    #    ax3.text(0.5, 0.5, 'Vorticity not computed', ha='center', va='center', transform=ax3.transAxes)
-    #    ax3.invert_yaxis()
-    #    ax3.set_xlabel('RMS Vorticity (x)')
 
-    #ax4 = fig.add_subplot(gs[1, 1])
-    #if rms_vort_z_gt is not None and rms_vort_z_recon is not None:
-    #    plot_two_curves(ax4, rms_vort_z_gt, rms_vort_z_recon, depth, labels=['Ground Truth', 'Reconstruction'], xlabel='RMS Vorticity (z)')
-    #else:
-    #    ax4.text(0.5, 0.5, 'Vorticity not computed', ha='center', va='center', transform=ax4.transAxes)
-    #    ax4.invert_yaxis()
-    #    ax4.set_xlabel('RMS Vorticity (z)')
-
-    # Row 3: NMSE and PSD Error
+    # Row 2: NMSE (left) and PSD Error (right)
     ax5 = fig.add_subplot(gs[1, 0])
-    DNS_case1 = 'S1'
-    DNS_case2 = 'S2'
-    teetank_case1= 'E1'
-    teetank_case2= 'E2'
+    case_S1 = 'S1'
+    case_S2 = 'S2'
+    case_E1= 'E1'
+    case_E2= 'E2'
     #plot_single_curve(ax5, nmse_data_1, nmse_data_2, depth1, depth2, err=std_nmse, label1=DNS_case1, label2 =DNS_case2, xlabel='Normalized Mean Square Error', colors=colors, z_label=z_label)
-    plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, DNS_case1, DNS_case2, teetank_case1, teetank_case2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label)
+    plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label)
     ax6 = fig.add_subplot(gs[1, 1])
-    plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, DNS_case1, DNS_case2, teetank_case1, teetank_case2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False)
+    plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False)
 
-    # Row 4: SSIM and PSNR
+    # Row 3: SSIM (left) and PSNR (right)
     ax7 = fig.add_subplot(gs[2, 0])
-    plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, DNS_case1, DNS_case2, teetank_case1, teetank_case2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,)
+    plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,)
 
     ax8 = fig.add_subplot(gs[2, 1])
-    plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, DNS_case1, DNS_case2, teetank_case1, teetank_case2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False)
+    plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False)
 
     # Adjust layout
 
    
-    fig.tight_layout()
+    #fig.tight_layout()
     plt.show()
     adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
     filename = adr_loc_3 + "error_metrics"
@@ -1101,6 +920,7 @@ def plot_error_metrics_four_cases(DNS_case1, DNS_case2, teetank_case1, teetank_c
     return fig, gs
 
 
+#DONE
 def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimental_ensembles, metric='rms'):
     """
     Compare per-snapshot error metrics for four flow cases
@@ -1144,11 +964,19 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
     
     if metric=='rms':
-        ylabel = 'u RMS'
+        ylabel = '$u_{RMS}$'
         variable_S1 = RMS_true_S1
         variable_S2 = RMS_true_S2
         variable_E1 = RMS_true_E1
         variable_E2 = RMS_true_E2
+
+        #calculating correlation of ground truth and reconstruction RMS
+        rms_corr_S1 = utilities.cross_correlation(RMS_true_S1,RMS_recons_S1)
+        rms_corr_S2 = utilities.cross_correlation(RMS_true_S2,RMS_recons_S2)
+        rms_corr_E1 = utilities.cross_correlation(RMS_true_E1,RMS_recons_E1)
+        rms_corr_E2 = utilities.cross_correlation(RMS_true_E2,RMS_recons_E2)
+
+        print("RMS correlations: \n" "S1:", rms_corr_S1, "\nS2:", rms_corr_S2, "\nE1:", rms_corr_E1, "\nE2:", rms_corr_E2)
 
     elif metric=='mse':
         ylabel = 'MSE'
@@ -1210,11 +1038,11 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     ax3.plot(test_snaps3, variable_E1, linestyle='-', color='k')
     ax3.set_ylabel(ylabel, fontsize=15)
     ax3.grid()
-    ax3.set_xlabel('test snapshot', fontsize=15)
+    ax3.set_xlabel('Test snapshot', fontsize=15)
 
     ax4.plot(test_snaps4, variable_E2, linestyle='-', color='k')
     ax4.grid()
-    ax4.set_xlabel('test snapshot', fontsize=15)
+    ax4.set_xlabel('Test snapshot', fontsize=15)
     ax4.tick_params(left=False, labelleft=False)    
 
     for ax in [ax1, ax2, ax3, ax4]:
@@ -1232,7 +1060,8 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
-    
+
+#DONE
 def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
     """
     Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
@@ -1314,8 +1143,6 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
     rms_gt_E1 = rms_gt_E1[:, snap_indices_exp]
     rms_recons_E1 = rms_recons_E1[:,snap_indices_exp]
 
-    
-
     rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
     rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
     
@@ -1343,11 +1170,11 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
     labels1=['Ground Truth, Re=1000', 'Recons, Re=1000']
     #make z_label:
     if z_norm=='taylor':
-        z_label='$z/L_{\lambda}$'
+        z_label='$\overline{z}/L_{\lambda}$'
     elif z_norm == 'int':
-        z_label='$z/L_{\infty}$'
+        z_label='$\overline{z}/L_{\infty}$'
     elif z_norm=='mixed':
-        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
+        z_label='$\overline{z}/(L_{\lambda} L_{\infty})^{1/2}$'  
     else:
         z_label = None
     ax1 = fig.add_subplot(gs[0, 0])
@@ -1387,10 +1214,10 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
         ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
         
-        ax_S1.set_xlabel('RMS u, S1', fontsize=14)
-        ax_S2.set_xlabel('RMS u, S2', fontsize=14)
-        ax_E1.set_xlabel('RMS u, E1', fontsize=14)
-        ax_E2.set_xlabel('RMS u, E2', fontsize=14)
+        ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=14)
+        ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=14)
+        ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=14)
+        ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=14)
 
         ax_S1.set_xlim((0.06,0.21))
         ax_S2.set_xlim((0.055,0.19))
@@ -1419,7 +1246,7 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         ax.tick_params(axis='x', which='major', labelsize=13)
         if ax==ax1 or ax==ax4 or ax==ax7 or ax==ax10:
             ax.tick_params(axis='y', which='major', labelsize=13)
-    fig.tight_layout()
+    #fig.tight_layout()
     plt.show()
     adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
     filename = adr_loc_3 + "rms_instantaneous"
@@ -1429,7 +1256,7 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
 
 
 
-
+#DONE
 def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_snap_index, lags=52, forecast=False, add_surface=False, full_planes=True, DNS_case='S2'):
     """
     Create side-by-side image comparisons of ground truth, SVD truncation,
@@ -1612,7 +1439,7 @@ def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_sn
     plt.close()
 
 
-
+#DONE
 def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
                               num_sensors=3, lags=52, forecast=False, add_surface=False):
     """
@@ -1669,9 +1496,6 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
     #filenames_snaps = []
   
     
-    
-
-
     for i in range(len(plane_list)):
         
         planes = ['H395', 'H390', 'H375', 'H350', 'H300']
@@ -1684,7 +1508,6 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
         #get SHRED V matrices
         test_recons, test_ground_truth, test_indices = utilities.open_SHRED(experimental_ens, exp_case, r_new, num_sensors, 
                                                                             SHRED_ens, plane_list, DNS=False, plane=plane, full_planes=True, forecast=forecast)
-        
 
         #get surface elevation
         all_rows = []
@@ -1717,9 +1540,7 @@ def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plan
                 plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
                 plt.show()
-        
-
-
+    
 
         print("getting test images")
         u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, r_new, 
@@ -1827,7 +1648,7 @@ def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index
     utilities.create_GIF(filenames, gif_name)
 
 
-
+#DONE
 def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
     """
     Compare how average reconstruction error metrics changes when either the
@@ -1914,7 +1735,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
         var_str = 'sensors'
         
     
-    plt.plot([optimal_var_val,optimal_var_val],[0.3,1.01], "--", color='k')
+    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
     plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
     plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
@@ -1929,7 +1750,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.savefig(var_str + "_analysis_DNS_"+DNS_case+".pdf")
     plt.show()
 
-
+#DONE
 def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
     """
     Compare how average reconstruction error metrics changes when either the
@@ -2014,7 +1835,7 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
         var_str = 'sensors'
         
     
-    plt.plot([optimal_var_val,optimal_var_val],[0.21,1.01], "--", color='k')
+    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
     plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
     plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
@@ -2027,6 +1848,7 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
     #plt.ylabel('PSNR')
     plt.savefig(var_str + "_analysis_teetank_"+case+".pdf")
     plt.show()
+
 
 
 def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, surface=False, GIF_only=True):

@@ -28,7 +28,7 @@ class TimeSeriesDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.len
 
-
+#DONE
 def stack_svd_arrays_DNS(vel_planes, rank, DNS_case='RE2500', exp_ens=None, exp_case=None, exp_forecast=False):
     '''Load SVD matrices of DNS for selected planes + surface elevation
         and stack them in the shape of
@@ -881,7 +881,7 @@ def normalized_mean_square_error(gt, recon):
 
 
 
-def power_spectral_density_error_v2(gt, recon, num_scales, DNS=True, DNS_case='RE2500'):
+def power_spectral_density_error(gt, recon, num_scales, DNS=True, DNS_case='RE2500'):
     """Compute normalized mean error in the power spectral density for the X largest scales."""
 
     nx, ny, nt = recon.shape
@@ -901,8 +901,6 @@ def power_spectral_density_error_v2(gt, recon, num_scales, DNS=True, DNS_case='R
         dy=dx
         cutoff_index = 7
 
-
-    
             
     gt = np.transpose(gt, (2,0,1))
     gt_fft, k_vals = utilities.compute_psd_1d(gt, dx, dy, DNS)
@@ -922,6 +920,8 @@ def power_spectral_density_error_v2(gt, recon, num_scales, DNS=True, DNS_case='R
     #psd_error = np.sum(psd_diff) / np.sum(gt_fft)
 
     return psd_error
+
+
 
 def power_spectral_density_compare(gt, recon, num_scales, DNS=True, DNS_case='RE2500'):
     nx, ny, nt = recon.shape
@@ -976,6 +976,72 @@ def power_spectral_density_compare(gt, recon, num_scales, DNS=True, DNS_case='RE
     #psd_error = np.sum(psd_diff) / np.sum(gt_fft)
 
     return gt_fft, recon_fft, k_vals
+
+
+
+def calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens):
+                
+
+    for i in range(len(r_vals)):
+        r = r_vals[i]
+        print("rank: ", r)
+        if DNS:
+            stack_planes=vel_planes
+            plane = vel_planes[plane_index]
+            integral_length_scale=utilities.get_integral_length_scale(case)
+            U_tot_red, S_tot_red, V_tot_red = stack_svd_arrays_DNS(stack_planes, r,  case)                                                  
+  
+            
+            V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, case, r, num_sensors, SHRED_ens, stack_planes, DNS=True, 
+                                                                     full_planes=False, forecast=False)
+            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(case, plane, plane_index+1, None, V_tot_recons, test_indices, r, 
+                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
+                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
+            gt_fft, recon_fft, k_vals = power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case=case)
+            gt_fft, svd_fft, k_vals = power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case=case)
+            spectral_max=np.amax(gt_fft)
+            gt_psd = gt_fft/spectral_max
+            recon_psd = recon_fft/spectral_max
+            svd_psd = svd_fft/spectral_max
+            k_vals = integral_length_scale*k_vals
+
+        
+        else:
+
+            planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+            plane = planes[plane_index]
+            X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
+            #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+            V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, r, num_sensors, SHRED_ens, vel_planes, DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
+            #get SVDs correctly
+            U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ens, case, 900, r, forecast=False, DNS_new=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
+            surf_fluc=None
+            u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, case, r, 
+                                                                                                            SHRED_ens, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
+                                                                                                            surface=False,no_input_u_fluc=True)
+            gt_fft, recon_fft, k_vals = power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+            gt_fft, svd_fft, k_vals = power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+            spectral_max=np.amax(gt_fft)
+            gt_psd = gt_fft/spectral_max
+            recon_psd = recon_fft/spectral_max
+            svd_psd = svd_fft/spectral_max
+            integral_length_scale=0.051
+            k_vals = integral_length_scale*k_vals
+
+        if i==0:
+            psd_recons_r = np.zeros((len(r_vals),len(k_vals)))
+            psd_svd_r = np.zeros((len(r_vals),len(k_vals)))
+            psd_gt =  gt_psd
+  
+        psd_recons_r[i] = recon_psd
+        psd_svd_r[i] = svd_psd
+    
+    return psd_gt, psd_svd_r, psd_recons_r, k_vals
+        
+
+
 
 def power_spectral_density_error_time_series(gt, recon, num_scales, test_indices, DNS=True, DNS_case='RE2500'):
     """Compute normalized mean error in the power spectral density for the X largest scales."""
@@ -1229,7 +1295,7 @@ def calculate_error_metrics(DNS_case, r_new, vel_planes, num_sensors, SHRED_ense
 
             #PSD
             print("calc PSD")
-            psd_error[j] = power_spectral_density_error_v2(u_fluc_full, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
+            psd_error[j] = power_spectral_density_error(u_fluc_full, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
             print("PSD error: ", psd_error[j])
         
         #save vertical error metric profiles in dictionary
@@ -1393,7 +1459,7 @@ def calculate_error_metrics_exp(case, r_new, vel_planes, num_sensors, SHRED_ense
 
                 #PSD
                 print("calc PSD")
-                psd_error[j] = power_spectral_density_error_v2(u_fluc_full, u_recons_test, 3, DNS=False, DNS_case=None)
+                psd_error[j] = power_spectral_density_error(u_fluc_full, u_recons_test, 3, DNS=False, DNS_case=None)
                 print("PSD val: ", psd_error[j])
 
             #save error metrics in dictionary

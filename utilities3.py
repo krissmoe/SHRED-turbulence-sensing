@@ -160,6 +160,17 @@ def multiply_along_axis(A, B, axis):
     return np.swapaxes(np.swapaxes(A, axis, -1) * B, -1, axis)
 
 
+def cross_correlation(a,b):
+    '''calculates the normalized cross-correlation
+    between array a and b
+    '''
+
+    a = (a - np.mean(a)) / (np.std(a) * len(a))
+    b = (b - np.mean(b)) / (np.std(b))
+    c = np.correlate(a, b, 'full')
+    c = c[len(c)//2] #choose the zero lag value
+    return c
+
 
 def convert_3d_to_2d(X):
     '''function for converting a 3D array of 2d space in time, to 1d snapshots in time'''
