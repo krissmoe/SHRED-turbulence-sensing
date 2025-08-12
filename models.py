@@ -3,6 +3,21 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 
+class TimeSeriesDataset(torch.utils.data.Dataset):
+    '''Takes input sequence of sensor measurements with shape (batch size, lags, num_sensors)
+    and corresponding measurments of high-dimensional state, return Torch dataset'''
+    def __init__(self, X, Y):
+        self.X = X
+        self.Y = Y
+        self.len = X.shape[0]
+        
+    def __getitem__(self, index):
+        return self.X[index], self.Y[index]
+    
+    def __len__(self):
+        return self.len
+    
+
 
 #create the SHRED class
 class SHRED(torch.nn.Module):
@@ -167,10 +182,6 @@ def forecast(forecaster, reconstructor, test_dataset):
 
 '''define custom turbulence loss - restricts fields to turbulence
     adds spectral loss to the loss function'''
-
-#TODO: I think the loss function here only uses output, i.e. V-matrices, not the full spatiotemporal field. Last dimension is not spatial turbulence...
-    #must construct fields and calculate spectrum in the model itself
-    #an alternative is to compare to Kolmogorov slope, but problem is that experimental data will be non-ideal
 
 
 def custom_turbulence_loss(output, target, lambda_spectrum=0.1):

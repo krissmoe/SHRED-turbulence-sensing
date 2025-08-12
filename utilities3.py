@@ -12,204 +12,17 @@ import mat73
 from lvpyio import read_set
 from tkinter import Tk, filedialog
 from skimage.filters import window
-import scipy.signal as sig
 import os
 
 
+'''---------------------------------------------------------------------------------------------------------------------------------'''
 
-def case_name_converter(case):
-    '''converts case name S1, S2, E1, E2 to specific file case names
-        necessary for good name flow throughout code base
-    '''
-
-    if case=='S1':
-        case_out = 'RE1000'
-    elif case=='S2':
-        case_out = 'RE2500'
-    elif case=='E1':
-        case_out = 'P25'
-    elif case=='E2':
-        case_out = 'P50'
-
-    return case_out
+'''DATA LOADING AND HANDLING FROM DNS AND 'T-TANK' EXPERIMENTS'''
 
 
-def compute_psd(snapshots, dx=1.0, dy=1.0):
-    """
-    Computes the mean PSD for an array of flow snapshots.
-
-    Parameters:
-    - snapshots: 3D NumPy array of shape (num_snapshots, nx, ny) containing flow snapshots.
-    - dx: Spacing between grid points in the x-direction.
-    - dy: Spacing between grid points in the y-direction.
-
-    Returns:
-    - psd_mean: 1D array of the mean PSD as a function of wavenumber.
-    - k_mid: 1D array of wavenumber bin midpoints.
-    """
-    num_snapshots, nx, ny = snapshots.shape
-
-    # Wavenumbers in each direction
-    kx = np.fft.fftfreq(nx, d=dx) * 2 * np.pi
-    ky = np.fft.fftfreq(ny, d=dy) * 2 * np.pi
-    kx, ky = np.meshgrid(kx, ky, indexing='ij')
-    k_magnitude = np.sqrt(kx ** 2 + ky ** 2)
-
-    k_max = np.max(k_magnitude)
-    k_bins = np.linspace(0, k_max, num=min(nx, ny) // 2)
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    # Initialize an array for storing the radial PSD
-    psd_all = np.zeros((num_snapshots, len(k_mid)))
-    #psd_all = []
-
-    #for snap in snapshots:
-    for i, snap in enumerate(snapshots):
-        # Compute 2D FFT
-        fft2 = np.fft.fft2(snap)
-        wimage = snap * window('hann', snap.shape)
-        fft2 = np.fft.fft2(snap)
-        psd2d = np.abs(np.fft.fft2(wimage)) ** 2
-        
-        #psd2d = np.abs(fft2) ** 2
-
-        # Flatten arrays for binning
-        k_flat = k_magnitude.flatten()
-        psd_flat = psd2d.flatten()
-
-        # Radial binning
-        psd_radial, _ = np.histogram(k_flat, bins=k_bins, weights=psd_flat)
-        count, _ = np.histogram(k_flat, bins=k_bins)
-
-        # Avoid division by zero
-        psd_radial = psd_radial / (count + 1e-10)
-        psd_all[i, :] = psd_radial
-        #psd_all.append(psd_radial)
-
-    # Average PSD across all snapshots
-    psd_all = np.array(psd_all)
-    psd_mean = np.mean(psd_all, axis=0)
-
-    # Compute the midpoints of wavenumber bins for output
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    return psd_mean, k_mid
-
-
-
-
-def compute_psd_1d(snapshots, dx=1.0, dy=1.0, DNS=False, time_avg=True):
-    num_snapshots, nx, ny = snapshots.shape
-    if DNS:
-        pad=0
-    else:
-        pad=75
-    kx = np.fft.fftfreq(nx+pad, d=dx) * 2 * np.pi
-    k_max = np.max(kx)
-    k_bins = np.linspace(0, k_max, num=nx+pad//2)
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    # Initialize an array for storing the radial PSD
-    psd_all = np.zeros((num_snapshots, len(k_mid)))
-
-    for i, snap in enumerate(snapshots):
-        # Compute 2D FFT
-        #fft2 = np.fft.fft2(snap)
-        #wimage = snap * window('hann', nx)
-        #fft2 = np.fft.fft2(snap)
-        #psd2d = np.abs(np.fft.fft2(wimage)) ** 2
-        
-        #data_win=snap
-        win = sig.windows.hann(nx,  sym=False)
-        data_win = multiply_along_axis(snap, win, axis=0)
-        
-        data_fft = np.fft.rfft(data_win, n=len(k_mid)*2 -1, axis=0)
-        PSD_vals = np.power(abs(data_fft),2)
-        #avgeraging spectrum along y (axis 1)
-        PSD_vals = np.mean(PSD_vals, axis=1)
-        #PSD_vals = np.power(abs(data_fft),2)
-        #psd2d = np.abs(fft2) ** 2
-
-        # Flatten arrays for binning
-        #k_flat = k_magnitude.flatten()
-        #psd_flat = psd2d.flatten()
-
-        # Radial binning
-        #psd_radial, _ = np.histogram(k_flat, bins=k_bins, weights=psd_flat)
-        #count, _ = np.histogram(k_flat, bins=k_bins)
-
-        # Avoid division by zero
-        #psd_radial = psd_radial / (count + 1e-10)
-        psd_all[i, :] = PSD_vals #psd_radial
-        #psd_all.append(psd_radial)
-
-    # Average PSD across all snapshots
-    psd_all = np.array(psd_all)
-    if time_avg:
-        psd_mean = np.mean(psd_all, axis=0)
-    else:
-        psd_mean=psd_all
-    # Compute the midpoints of wavenumber bins for output
-    k_mid = 0.5 * (k_bins[:-1] + k_bins[1:])
-
-    
-    return psd_mean, k_mid
-
-
-def multiply_along_axis(A, B, axis):
-    return np.swapaxes(np.swapaxes(A, axis, -1) * B, -1, axis)
-
-
-def cross_correlation(a,b):
-    '''calculates the normalized cross-correlation
-    between array a and b
-    '''
-
-    a = (a - np.mean(a)) / (np.std(a) * len(a))
-    b = (b - np.mean(b)) / (np.std(b))
-    c = np.correlate(a, b, 'full')
-    c = c[len(c)//2] #choose the zero lag value
-    return c
-
-
-def convert_3d_to_2d(X):
-    '''function for converting a 3D array of 2d space in time, to 1d snapshots in time'''
-    time_dim = len(X[0,0])
-    Y_dim = len(X)
-    X_dim = len(X[0])
-    #print("time_dim: ", time_dim)
-    ##print("X_dim: ", X_dim)
-    #print("Y_dim: ", Y_dim)
-
-    X_out = np.reshape(X, (X_dim*Y_dim, time_dim), order='C')
-    #X_out = np.transpose(X_out)
-    #print("out: ", X_out)
-    return X_out
-
-
-
-def convert_2d_to_3d(X, X_dim, Y_dim, time_dim):
-    '''function for converting a 2D array of 1D snapshots in time to 2D space in time'''
-    #X = np.transpose(X)
-    X_out = np.reshape(X, (Y_dim, X_dim, time_dim))
-    #print("X_out: ", X_out)
-    return X_out
-
-
-
-def create_GIF(filenames, gif_name):
-    print("Creating GIF\n")
-    with imageio.get_writer(f'{gif_name}.gif', mode='I') as writer:
-        for filename in filenames:
-            image = imageio.imread(filename)
-            writer.append_data(image)
-
-    print('GIF saved\n')
-
-
-
-def write_teetank_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False):
-    '''Function to load Teetank data from Davis dataset to MAT-file
+#done-ish, edit filename
+def write_teetank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False):
+    '''Function to load experimental PIV data from the 'Teetank' turbulent watertank experiment from Davis dataset to MAT-file
     returns MAT-file with velocity field of shape (ens, dimY, dimX, dimT)'''
     
     u_plane = np.zeros((num_ensembles, dimY, dimX, dimT))
@@ -238,6 +51,7 @@ def write_teetank_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, d
     #sp.io.savemat(svd_fname, svd_dict)
     print("DONE!")
 
+#done-ish, edit filename
 def write_teetank_surf_to_mat(surf_data, case, depth):
     #tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
     tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
@@ -250,6 +64,7 @@ def write_teetank_surf_to_mat(surf_data, case, depth):
             f.create_dataset(key, data=value)
     #sp.io.savemat(svd_fname, svd_dict)
     print("DONE!")
+
 
 def open_teetank_profilometry(addr):
     # If address is not provided, ask the user to provide a file path
@@ -278,6 +93,7 @@ def open_teetank_profilometry(addr):
     return surf
 
 
+#done-ish, edit filename
 def read_exp_plane(case='P25',depth='H390',variable='U0',surface=False):
 
     tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
@@ -290,7 +106,7 @@ def read_exp_plane(case='P25',depth='H390',variable='U0',surface=False):
     return U
 
 
-
+#done-ish, edit filename
 def read_exp_surface(case='P25', depth='H390'):
     surf_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
 
@@ -303,8 +119,8 @@ def read_exp_surface(case='P25', depth='H390'):
     return surf_fluc
 
 
-
-def get_surface(DNS_case):
+#done-ish, edit filename
+def get_surface_DNS(DNS_case):
     if DNS_case=='RE2500':
         fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\surfElev.mat"
     else:
@@ -321,9 +137,11 @@ def get_surface(DNS_case):
     return surf_fluc
 
 
-
+#done
 def get_normalized_surface_DNS(DNS_case):
-    surf_fluc = get_surface(DNS_case)
+    '''first reads DNS surface, 
+        then normalizes the field'''
+    surf_fluc = get_surface_DNS(DNS_case)
     surf_fluc_2d = convert_3d_to_2d(surf_fluc)
     Xnorm= np.max(np.abs(surf_fluc))
     X = surf_fluc_2d/Xnorm #note, this is surface velocity
@@ -331,17 +149,24 @@ def get_normalized_surface_DNS(DNS_case):
     #n2 = (X).shape[0]
     return X
 
+#done
 def get_normalized_surface_exp(exp_case, plane, experimental_ens):
+    '''first reads experimental surface, 
+        then normalizes the field'''
     exp_case = case_name_converter(exp_case)
     surf_fluc = get_surface_exp(exp_case, plane)
     surf_fluc_2d = convert_3d_to_2d(surf_fluc[:,:,:,experimental_ens-1])
     Xnorm= np.max(np.abs(surf_fluc))
-    X = surf_fluc_2d/Xnorm #note, this is surface velocity
+    X = surf_fluc_2d/Xnorm 
     print(X.shape)
-    #n2 = (X).shape[0]
+
     return X
 
+#done-ish, edit filename
 def get_velocity_plane_DNS(DNS_case, plane):
+    '''reads velocity plane from the DNS data files
+        plane indicates plane index starting from 0'''
+    
     if DNS_case == 'RE2500':
         fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\u_layer"+str(plane)+".mat"
         dimX = 256
@@ -358,22 +183,31 @@ def get_velocity_plane_DNS(DNS_case, plane):
     u_fluc = u - u_mean
     return u_fluc
 
-def get_velocity_plane_exp(teetank_case, plane):
+#done
+def get_velocity_plane_exp(case, plane):
+    '''reads PIV velocity planes from experimental case
+        with plane indicating plane index, ranging from 1 to 5'''
     depths = ['H395', 'H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    u = read_exp_plane(teetank_case,depth,variable='U0',surface=False)
+    u = read_exp_plane(case,depth,variable='U0',surface=False)
     #structure of u is (ens, dimY, dimX, dimT)
     u_mean = np.nanmean(u, axis=3, keepdims=True)
     u_fluc = u - u_mean
     return u_fluc
 
-def get_surface_exp(teetank_case, plane):
+#done
+def get_surface_exp(case, plane):
+    '''reads profilometry surface from experimental case
+        for the corresponding paired plane
+        with plane indicating plane index, ranging from 1 to 5'''
     depths = ['H395','H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    surf_fluc = read_exp_surface(teetank_case, depth)
+    surf_fluc = read_exp_surface(case, depth)
     return surf_fluc
 
+#done
 def get_dims_DNS(DNS_case):
+    '''get dimensions for DNS'''
     if DNS_case=='RE2500':
         dimX = 256
         dimY = 256
@@ -384,14 +218,17 @@ def get_dims_DNS(DNS_case):
         dimT = 10900
     return dimX, dimY, dimT
 
-
+#done
 def get_dims_exp_vel():
+    '''get dimension for PIV fields for the experiment'''
     dimX = 225
     dimY = 196
     dimT = 900
     return dimX, dimY, dimT
 
+#done
 def get_dims_exp_surf(depth='H390', case='P50'):
+    '''get dimension for profilometry surface field for the experiment'''
     dimX = 610
     dimY = 540
     if depth=='H375' and case=='P50':
@@ -399,15 +236,18 @@ def get_dims_exp_surf(depth='H390', case='P50'):
     dimT = 900
     return dimX, dimY, dimT
 
-
+#done
 def get_mesh_DNS(DNS_case):
+    '''get the spatial mesh grid for the DNS'''
     dimX, dimY, dimT = get_dims_DNS(DNS_case)
     X = np.linspace(0,dimX-1, dimX)
     Y = np.linspace(0,dimY-1, dimY) 
     XX, YY = np.meshgrid(X, Y)
     return XX, YY
 
+#done-ish, edit filename
 def get_mesh_exp(case='P50', depth='H390'):
+    '''get the spatial mesh grid for the experiment'''
     addr = 'E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\surfMesh_' + depth + '_' + case +'.mat'
     meshes = mat73.loadmat(addr)
     #print(meshes)
@@ -424,9 +264,9 @@ def get_mesh_exp(case='P50', depth='H390'):
     return X_surf, Y_surf, X_vel, Y_vel
 
 
-
-
+#done-ish, edit filename
 def get_zz_DNS(DNS_case):
+    '''get depth coordinate z for DNS'''
     if DNS_case=='RE2500':
 
         fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\zz.mat"
@@ -434,17 +274,20 @@ def get_zz_DNS(DNS_case):
         fname = "E:\\Users\krissmoe\Documents\PhD data storage\RE1000_WEinf\\zz_RE1000.mat"
     data = sio.loadmat(fname)
     zz = data['zz'][:,0]
-
     z = 1 -zz
-
     z = -z*5*np.pi
     return z
 
+#done
 def get_zz_exp():
-    z1 = np.array([-0.5, -1.0, -2.5, -5.0, -10.0])
-    return z1
+    '''get depth coordinate z for experiment
+        values are in cm from surface'''
+    z = np.array([-0.5, -1.0, -2.5, -5.0, -10.0])
+    return z
 
+#done-ish, edit filename
 def get_integral_length_scale(DNS_case):
+    '''reads the integral length scale from file'''
     tscales_fname = "E:\\Users\krissmoe\Documents\PhD data storage\SHRED DNS Backup\\TurbScales_" + DNS_case + ".mat"
     TurbScales = sp.io.loadmat(tscales_fname)
 
@@ -457,6 +300,7 @@ def get_integral_length_scale(DNS_case):
     u_Rep = TurbScales['TurbScales']['uRep'][0,0][0][0]
     return L_int
 
+#done-ish, edit filename
 def get_normalized_z(z, z_norm, DNS_case):
     '''takes in a z axis (1D array)
         and z_norm argument,
@@ -488,6 +332,7 @@ def get_normalized_z(z, z_norm, DNS_case):
     
     return z
 
+#done
 def get_normalized_z_exp(z, z_norm, exp_case):
     '''takes in a z axis (1D array)
         and z_norm argument,
@@ -520,12 +365,185 @@ def get_normalized_z_exp(z, z_norm, exp_case):
     
     return z
 
+#done
+def case_name_converter(case):
+    '''converts case name S1, S2, E1, E2 to specific file case names
+        necessary for good name flow throughout code base
+    '''
+
+    if case=='S1':
+        case_out = 'RE1000'
+    elif case=='S2':
+        case_out = 'RE2500'
+    elif case=='E1':
+        case_out = 'P25'
+    elif case=='E2':
+        case_out = 'P50'
+
+    return case_out
+
+'''-------------------------------------------------------------------------------------------------------------------------'''
+
+'''SVD CALCULATIONS AND PRE-PROCESSING SVD MATRICES'''
+
+#done-ish, edit filename
+def save_singular_values_full(DNS_case, DNS_plane):
+    '''calculates all singular values for a DNS case
+        and saves these to file'''
+    u_fluc = get_velocity_plane_DNS(DNS_case, DNS_plane)
+    
+    print("Starting SVD")
+    u_fluc=convert_3d_to_2d(u_fluc)
+    U, S, VT = np.linalg.svd(u_fluc,full_matrices=False)
+    print(S.shape)
+    print("SVD finished")
+    del U
+    del VT
+    S_dict = {
+                    'S': S}
+    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    S_fname = adr_loc + "S_fullrank_"+ DNS_case + "_plane"+str(DNS_plane)
+    with h5py.File(S_fname, 'w') as f:
+        for key, value in S_dict.items():
+            f.create_dataset(key, data=value)
+
+#done-ish, edit filename
+def save_singular_values_full_exp(case, experimental_ens, plane):
+    '''calculates all singular values for an experimental case
+        and saves these to file'''
+    u_fluc = get_velocity_plane_exp(case, plane)
+    u_fluc = u_fluc[experimental_ens-1]
+    print("Starting SVD")
+    u_fluc=convert_3d_to_2d(u_fluc)
+    U, S, VT = np.linalg.svd(u_fluc,full_matrices=False)
+    print(S.shape)
+    print("SVD finished")
+    del U
+    del VT
+    S_dict = {
+                    'S': S}
+    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    S_fname = adr_loc + "S_fullrank_teetank_"+ case + "_ens" + str(experimental_ens) +  "_plane"+str(plane)
+    with h5py.File(S_fname, 'w') as f:
+        for key, value in S_dict.items():
+            f.create_dataset(key, data=value)
+
+#done-ish, edit filename
+def get_singular_values_full(DNS_case, DNS_plane):
+    '''reads singular values from file, for a DNS case'''
+    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    S_fname = adr_loc + "S_fullrank_"+ DNS_case + "_plane"+str(DNS_plane)
+    with h5py.File(S_fname, 'r') as s_matrix:
+        # List all datasets in the file
+        S = np.array(s_matrix['S'])
+
+    return S
+
+#done-ish, edit filename
+def get_singular_values_full_exp(case, experimental_ens, plane):
+    '''reads singular values from file, for an experimental case'''
+    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    S_fname = adr_loc + "S_fullrank_teetank_"+ case + "_ens" + str(experimental_ens) +  "_plane"+str(plane)
+    with h5py.File(S_fname, 'r') as s_matrix:
+        # List all datasets in the file
+        S = np.array(s_matrix['S'])
+
+    return S
+
+#done-ish, edit filename
+def get_cumsum_svd(r_vals, total_ranks, DNS_case):
+    '''calculate cumulative sum of singular values up to rank values 
+        given by r_valsfor a DNS case'''
+    
+    s_fname = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\S_" + DNS_case +".mat" 
+    with h5py.File(s_fname, 'r') as s_matrix:
+        # List all datasets in the file
+        S = np.array(s_matrix['S'])
+    s_energy = np.zeros(len(r_vals))
+    rank_percentage = np.zeros(len(r_vals))
+    for i in range(len(r_vals)):
+        s_en = np.cumsum(S[:r_vals[i]])/np.sum(S)
+        s_energy[i] = s_en[-1]
+        rank_percentage[i] = r_vals[i]/total_ranks
+
+    
+    return s_energy, rank_percentage
 
 
-def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', new_teetank=False):
-    '''calculates SVD of variable for one ensemble cases, and stack them in U S V'''
-    '''assume data_2d is of format (ens, dimx*dimy, dimT)'''
+#done-ish, edit filename
+def get_cumsum_svd_exp(r_vals, total_ranks, case, ensemble, plane):
+    '''calculate cumulative sum of singular values up to rank values 
+        given by r_valsfor an experimental case'''
+    
+    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    S_fname = adr_loc + "S_fullrank_teetank_"+ case + "_ens" + str(ensemble) +  "_plane"+str(plane)
+    with h5py.File(S_fname, 'r') as s_matrix:
+        # List all datasets in the file
+        S = np.array(s_matrix['S'])
+    s_energy = np.zeros(len(r_vals))
+    rank_percentage = np.zeros(len(r_vals))
+    for i in range(len(r_vals)):
+        s_en = np.cumsum(S[:r_vals[i]])/np.sum(S)
+        s_energy[i] = s_en[-1]
+        rank_percentage[i] = r_vals[i]/total_ranks
+    #s_energy = s_energy
+    
+    return s_energy, rank_percentage
 
+
+#done-ish, edit filename
+def save_svd_full(surf_fluc, u_fluc, experimental_ens, exp_case, variable, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', new_teetank=False):
+    """
+    Compute and save SVD matrices for either DNS (single plane/surface) or
+    experimental (per-plane) data, and return the U, S, V matrices.
+
+    Parameters
+    ----------
+    surf_fluc : (nx*ny, nt) ndarray or None
+        Surface-elevation snapshots (flattened space × time). Used when
+        DNS_surf=True (DNS branch). Ignored in the experimental branch
+        since data are reloaded internally.
+    u_fluc : (nx*ny, nt) ndarray or None
+        Velocity snapshots (flattened space × time). Used when DNS_surf=False
+        (DNS branch). Ignored in the experimental branch.
+    experimental_ens : int
+        1-based ensemble index for the experimental (Teetank) data.
+    exp_case : str
+        Experimental case identifier (e.g., 'P25', 'P50').
+    variable : str
+        Used only for experimental file naming when `new_teetank=True`.
+    forecast : bool, optional
+        Kept for naming compatibility; not used in computations.
+    DNS : bool, optional
+        If True, process DNS data; otherwise process experimental data.
+    DNS_plane : int or None
+        DNS velocity plane index when `DNS=True` and `DNS_surf=False`.
+    DNS_surf : bool, optional
+        If True, compute SVD of DNS surface; otherwise DNS velocity plane.
+    DNS_case : str, optional
+        DNS case identifier (e.g., 'RE2500', 'RE1000').
+    new_teetank : bool, optional
+        If True, use alternate experimental output filename.
+
+    Returns
+    -------
+    DNS branch
+        (U_tot_u, S_tot_u, V_tot)
+            U_tot_u : (nx*ny, r) ndarray
+            S_tot_u : (r,) ndarray
+            V_tot   : (nt, r) ndarray
+        where r=1000 (truncated to the first 1000 singular modes).
+    Experimental branch
+        (U_tot_u, U_tot_eta, S_tot_u, S_tot_eta, V_tot)
+            SVD factors for the **last** processed plane in the loop.
+
+
+    Notes
+    -----
+    - Input arrays must be flattened to (nx*ny, nt).
+    - Experimental data for each plane are loaded internally; the function
+      loops over a predefined set of planes and saves per-plane SVDs.
+    """
 
     if DNS:
         #take in one velocity/surface plane and calculates SVD up to rank 1000
@@ -551,13 +569,13 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
             
         for i in range(len(planes)):
             plane_str = planes[i]
-            u = read_exp_plane(case=case,depth=plane_str,variable='U0',surface=False)
-            surf_fluc = read_exp_surface(case=case, depth=plane_str)
+            u = read_exp_plane(case=exp_case,depth=plane_str,variable='U0',surface=False)
+            surf_fluc = read_exp_surface(case=exp_case, depth=plane_str)
             u_fluc = u - np.mean(u, axis=3, keepdims=True)
             del u
-            u_fluc = u_fluc[ens-1]
+            u_fluc = u_fluc[experimental_ens-1]
             u_fluc = convert_3d_to_2d(u_fluc)
-            surf_fluc = surf_fluc[:,:,:,ens-1]
+            surf_fluc = surf_fluc[:,:,:,experimental_ens-1]
             surf_fluc = convert_3d_to_2d(surf_fluc)
 
 
@@ -584,7 +602,7 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
                 'V_tot': V_tot}
             adr_loc = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank"
 
-            svd_fname = adr_loc + "\Teetank SVD_plane_" + plane_str + "_ens"+ str(ens) + "_"+case + ".mat"
+            svd_fname = adr_loc + "\Teetank SVD_plane_" + plane_str + "_ens"+ str(experimental_ens) + "_"+exp_case + ".mat"
             with h5py.File(svd_fname, 'w') as f:
                 for key, value in svd_dict.items():
                     f.create_dataset(key, data=value)
@@ -616,7 +634,7 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
         adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     
     else:
-        svd_fname = adr_loc + "\Teetank SVD_fullplanes_" + variable + "_ens"+ str(ens) + "_"+case + ".mat"
+        svd_fname = adr_loc + "\Teetank SVD_fullplanes_" + variable + "_ens"+ str(experimental_ens) + "_"+exp_case + ".mat"
     with h5py.File(svd_fname, 'w') as f:
         for key, value in svd_dict.items():
             f.create_dataset(key, data=value)
@@ -627,99 +645,30 @@ def save_svd_full(surf_fluc, u_fluc, ens, case, variable, forecast=False, DNS=Fa
     else:
         return U_tot_u, U_tot_surf, S_tot_u, S_tot_surf, V_tot
 
-
-def save_singular_values_full(DNS_case, DNS_plane):
-    u_fluc = get_velocity_plane_DNS(DNS_case, DNS_plane)
-    
-    print("Starting SVD")
-    u_fluc=convert_3d_to_2d(u_fluc)
-    U, S, VT = np.linalg.svd(u_fluc,full_matrices=False)
-    print(S.shape)
-    print("SVD finished")
-    del U
-    del VT
-    S_dict = {
-                    'S': S}
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_"+ DNS_case + "_plane"+str(DNS_plane)
-    with h5py.File(S_fname, 'w') as f:
-        for key, value in S_dict.items():
-            f.create_dataset(key, data=value)
-
-def save_singular_values_full_exp(teetank_case, ensemble, plane):
-    u_fluc = get_velocity_plane_exp(teetank_case, plane)
-    u_fluc = u_fluc[ensemble-1]
-    print("Starting SVD")
-    u_fluc=convert_3d_to_2d(u_fluc)
-    U, S, VT = np.linalg.svd(u_fluc,full_matrices=False)
-    print(S.shape)
-    print("SVD finished")
-    del U
-    del VT
-    S_dict = {
-                    'S': S}
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_teetank_"+ teetank_case + "_ens" + str(ensemble) +  "_plane"+str(plane)
-    with h5py.File(S_fname, 'w') as f:
-        for key, value in S_dict.items():
-            f.create_dataset(key, data=value)
-
-def get_singular_values_full(DNS_case, DNS_plane):
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_"+ DNS_case + "_plane"+str(DNS_plane)
-    with h5py.File(S_fname, 'r') as s_matrix:
-        # List all datasets in the file
-        S = np.array(s_matrix['S'])
-
-    return S
-
-def get_singular_values_full_exp(teetank_case, ensemble, plane):
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_teetank_"+ teetank_case + "_ens" + str(ensemble) +  "_plane"+str(plane)
-    with h5py.File(S_fname, 'r') as s_matrix:
-        # List all datasets in the file
-        S = np.array(s_matrix['S'])
-
-    return S
-
-
-def get_cumsum_svd(r_vals, total_ranks, DNS_case):
-    s_fname = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\S_" + DNS_case +".mat" 
-    with h5py.File(s_fname, 'r') as s_matrix:
-        # List all datasets in the file
-        S = np.array(s_matrix['S'])
-    s_energy = np.zeros(len(r_vals))
-    rank_percentage = np.zeros(len(r_vals))
-    for i in range(len(r_vals)):
-        s_en = np.cumsum(S[:r_vals[i]])/np.sum(S)
-        s_energy[i] = s_en[-1]
-        rank_percentage[i] = r_vals[i]/total_ranks
-    #s_energy = s_energy
-    
-    return s_energy, rank_percentage
-
-def get_cumsum_svd_exp(r_vals, total_ranks, case, ensemble, plane):
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    S_fname = adr_loc + "S_fullrank_teetank_"+ case + "_ens" + str(ensemble) +  "_plane"+str(plane)
-    with h5py.File(S_fname, 'r') as s_matrix:
-        # List all datasets in the file
-        S = np.array(s_matrix['S'])
-    s_energy = np.zeros(len(r_vals))
-    rank_percentage = np.zeros(len(r_vals))
-    for i in range(len(r_vals)):
-        s_en = np.cumsum(S[:r_vals[i]])/np.sum(S)
-        s_energy[i] = s_en[-1]
-        rank_percentage[i] = r_vals[i]/total_ranks
-    #s_energy = s_energy
-    
-    return s_energy, rank_percentage
-
-
-
+#done-ish, edit filename
 def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
-    '''Function that calculates SVD matrices for a given
-        set of DNS planes, and saves these in mat files'''
-    num_planes=plane_end-plane_start
+    """
+    Compute and save SVD matrices for a range of DNS velocity planes.
+
+    Loads each plane (inclusive range), removes the temporal mean to get
+    fluctuations, reshapes to (nx*ny, nt), and calls `save_svd_full` to
+    compute a truncated SVD and write .mat files.
+
+    Parameters
+    ----------
+    plane_start : int
+        First DNS plane index to process (inclusive).
+    plane_end : int
+        Last DNS plane index to process (inclusive).
+    DNS_case : str, optional
+        DNS case identifier ('RE2500' or 'RE1000'), used for file paths.
+
+    Returns
+    -------
+    None
+        Results are saved to disk via `save_svd_full`.
+    """
+    
     surf_fluc_2d = np.zeros(1)#utilities.convert_3d_to_2d(u_fluc)
     ens=0
     variable='u'
@@ -741,7 +690,6 @@ def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
         del u
         del u_mean
         
-
         u_fluc = convert_3d_to_2d(u_fluc)
         print("start svd")
         U, S, V = save_svd_full(surf_fluc_2d, u_fluc, ens, case, variable, forecast=False, DNS=True, DNS_plane=plane, DNS_case=DNS_case, DNS_surf=False)
@@ -751,15 +699,49 @@ def calculate_DNS_SVDs(plane_start, plane_end, DNS_case='RE2500'):
         del U, S, V
     
 
+#done-ish, edit filename, quite essential
+def open_SVD(experimental_ens, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', experimental_plane='H390'):
+    """
+    Load precomputed SVD matrices(and optionally raw fluctuations) for DNS or experimental data.
 
-def open_SVD(r, ens, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', plane='H390'):
-    '''Opens and loads file containing SVD matrices for a given velocity plane or surface elevation'''
+    Parameters
+    ----------
+    experimental_ens : int
+        Experimental ensemble index (used when `exp=True`).
+    vel_fluc : bool, optional
+        If True, also return the saved velocity fluctuation field `u_fluc` (when available).
+    variable : str, optional
+        Variable name for experimental files (e.g., 'u').
+    exp : bool, optional
+        If True, load experimental SVD files; otherwise load DNS.
+    experimental_case : str, optional
+        Experimental case ID (e.g., 'P25', 'P50') used in filenames (when `exp=True`).
+    forecast : bool, optional
+        If True, use forecast-style experimental SVD filename pattern.
+    DNS_new : bool, optional
+        If True, load per-plane DNS SVD (or surface) files using `DNS_plane`/`DNS_surf`.
+    DNS_plane : int, optional
+        DNS plane index for per-plane loading (used when `DNS_new=True` and `DNS_surf=False`).
+    DNS_surf : bool, optional
+        If True, load DNS surface SVD file (used when `DNS_new=True`).
+    DNS_case : str, optional
+        DNS case identifier (e.g., 'RE2500', 'RE1000').
+    experimental_plane : str, optional
+        Experimental plane identifier (e.g., 'H390').
+
+    Returns
+    -------
+    tuple
+        DNS (default or `DNS_new=False`): (U_tot_u, S_tot_u, V_tot)
+        Experimental (`exp=True`): (U_tot_u, S_tot_u, U_tot_eta, S_tot_eta, V_tot)
+        If `vel_fluc=True`, an additional `u_fluc` array is appended to the return tuple.
+    """
     
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     if exp:
         adr_loc = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank"
                 
-        svd_fname = adr_loc + "\Teetank SVD_plane_" + plane + "_ens"+ str(ens) + "_"+experimental_case + ".mat"
+        svd_fname = adr_loc + "\Teetank SVD_plane_" + experimental_plane + "_ens"+ str(experimental_ens) + "_"+experimental_case + ".mat"
         if forecast:
             print("finds filename")
             svd_fname = adr_loc + "\Teetank_Forecast_SVD_fullplanes_" + variable + "_"+experimental_case + ".mat"
@@ -768,8 +750,7 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', exp=False, experimental_case=
             svd_fname = adr_loc + "\SVD_surf_"+DNS_case+"_WEinf.mat"
         else:
             svd_fname = adr_loc + "\SVD_plane"+ str(DNS_plane) +"_"+DNS_case+"_WEinf.mat"
-    else:
-        svd_fname = adr_loc + "\SVD_r"+ str(r) +"_"+DNS_case+"_WEinf.mat"
+
 
     #load U, S, V matrices
     with h5py.File(svd_fname, 'r') as SVD:
@@ -795,71 +776,145 @@ def open_SVD(r, ens, vel_fluc=False, variable='u', exp=False, experimental_case=
                 return U_tot_u, S_tot_u, V_tot
 
 
-
-def reduce_SVD(U, S, V, levels, r_new, exp=True, DNS_new=False, surf=False):
-    '''Function to truncate a high-rank SVD to a lower rank SVD, as given by new rank value r_new'''
+#done
+def reduce_SVD(U, S, V, levels, rank, exp=True, DNS_new=False, surf=False):
+    '''Function to truncate a high-rank SVD to a lower rank SVD, as given by rank value '''
     if DNS_new:
         levels=1 
     r = V.shape[1]//levels
     
     if not exp:
-        U_tot_new = np.zeros((U.shape[0],r_new*levels))
-        S_tot_new = np.zeros(r_new*levels)
+        U_tot_new = np.zeros((U.shape[0],rank*levels))
+        S_tot_new = np.zeros(rank*levels)
     else:
         if surf==True:
-            U_tot_new = np.zeros((U.shape[0],r_new))
-            S_tot_new = np.zeros(r_new)
+            U_tot_new = np.zeros((U.shape[0],rank))
+            S_tot_new = np.zeros(rank)
         else:
             
-            U_tot_new = np.zeros((U.shape[0],r_new))
-            #U_tot_new = np.zeros((U.shape[0],r_new*(levels-1)))
-            S_tot_new = np.zeros(r_new)
-    V_tot_new = np.zeros((V.shape[0],r_new*levels))
+            U_tot_new = np.zeros((U.shape[0],rank))
+            
+            S_tot_new = np.zeros(rank)
+    V_tot_new = np.zeros((V.shape[0],rank*levels))
     for i in range(levels):
         if not exp:
-            U_tot_new[:, i*r_new:(i+1)*r_new] = U[:, i*r:i*r+r_new]
-            S_tot_new[i*r_new:(i+1)*r_new] = S[i*r:i*r + r_new]
+            U_tot_new[:, i*rank:(i+1)*rank] = U[:, i*r:i*r+rank]
+            S_tot_new[i*rank:(i+1)*rank] = S[i*r:i*r + rank]
         if surf==False:
-            #if i<levels-1:
-            #    U_tot_new[:, i*r_new:(i+1)*r_new] = U[:, i*r:i*r+r_new]
-            #    S_tot_new[i*r_new:(i+1)*r_new] = S[i*r:i*r + r_new]
-            U_tot_new[:, 0:r_new] = U[:, 0:r_new]
-            S_tot_new[0:r_new] = S[0:r_new]
-        V_tot_new[:, i*r_new:(i+1)*r_new] = V[:, i*r:i*r + r_new]
+
+            U_tot_new[:, 0:rank] = U[:, 0:rank]
+            S_tot_new[0:rank] = S[0:rank]
+        V_tot_new[:, i*rank:(i+1)*rank] = V[:, i*r:i*r + rank]
 
     if exp:
         if surf==True:
-            U_tot_new[:,:r_new] = U[:, :r_new]
-            S_tot_new[0:r_new] = S[0:r_new]
+            U_tot_new[:,:rank] = U[:, :rank]
+            S_tot_new[0:rank] = S[0:rank]
 
     return U_tot_new, S_tot_new, V_tot_new
 
 
+#done
+def open_and_reduce_SVD(experimental_ens, exp_case, rank, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', exp=True, plane='H390'):
+    """
+    Load SVD factors for a selected DNS or experimental plane/surface and
+    return rank-truncated matrices
 
-def open_and_reduce_SVD(teetank_ens, teetank_case, r, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case='RE2500', exp=True, plane='H390'):
-    '''Opens files containing SVD matrices for a given velocity plane or surface elevation, 
-        and truncates the U,S,V-matrices with the specified rank truncation r_new'''
-    if DNS_new:
-        U_tot_u, S_tot_u, V_tot = open_SVD(r, teetank_ens, False, 'u', exp, teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, DNS_case=DNS_case)
+    Parameters
+    ----------
+    experimental_ens : int
+        Experimental ensemble index (ignored for DNS).
+    exp_case : str
+        Experimental case identifier (e.g., 'P25', 'P50').
+    rank : int
+        Target truncation rank.
+    forecast : bool, optional
+        Use forecast-style experimental filenames.
+    DNS : bool, optional
+        If True, load DNS data; otherwise experimental.
+    DNS_plane : int, optional
+        DNS plane index (when DNS=True and DNS_surf=False).
+    DNS_surf : bool, optional
+        If True, load DNS surface SVD instead of a plane.
+    DNS_case : str, optional
+        DNS case identifier (e.g., 'RE2500').
+    exp : bool, optional
+        If True, load experimental data.
+    plane : str, optional
+        Experimental plane (e.g., 'H390').
+
+    Returns
+    -------
+    tuple
+        DNS: (U_u_red, S_u_red, V_red)
+        Experimental: (U_u_red, S_u_red, U_eta_red, S_eta_red, V_red)
+        where all matrices are truncated to `rank`.
+    """
+    if DNS:
+        U_tot_u, S_tot_u, V_tot = open_SVD(experimental_ens, False, 'u', exp, exp_case, forecast, DNS, DNS_plane, DNS_surf, DNS_case=DNS_case)
         levels=1
     else:
         
-        U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = open_SVD(r, teetank_ens, False, 'u', exp,  teetank_case, forecast, DNS_new, DNS_plane, DNS_surf, plane=plane)
+        U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = open_SVD(experimental_ens, False, 'u', exp,  exp_case, forecast, DNS, DNS_plane, DNS_surf, experimental_plane=plane)
         levels=2
         #extract reduced surface field
-        U_tot_surf_red, S_tot_surf_red, V_tot_red = reduce_SVD(U_tot_surf, S_tot_surf, V_tot, levels, r_new, exp, DNS_new, surf=True)
+        U_tot_surf_red, S_tot_surf_red, V_tot_red = reduce_SVD(U_tot_surf, S_tot_surf, V_tot, levels, rank, exp, DNS, surf=True)
         
-    U_tot_u_red, S_tot_u_red, V_tot_red = reduce_SVD(U_tot_u, S_tot_u, V_tot, levels, r_new, exp, DNS_new, surf=False)
+    U_tot_u_red, S_tot_u_red, V_tot_red = reduce_SVD(U_tot_u, S_tot_u, V_tot, levels, rank, exp, DNS, surf=False)
     
-    if DNS_new:
+    if DNS:
         return U_tot_u_red, S_tot_u_red, V_tot_red
     else:
         
         return U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red
 
 
+def stack_svd_arrays_DNS(vel_planes, rank, DNS_case='RE2500', exp_ens=None, exp_case=None, exp_forecast=False):
+    '''Load SVD matrices of DNS for selected planes + surface elevation
+        and stack them in the shape of
+        [U1, U2, U3,...Un]
+        and likewise for S and V matrices'''
+    
+    r=1000
+    num_planes = len(vel_planes)
+    
+    
+    #extract lowest velocity plane
+    DNS_plane = vel_planes[-1]
+    U_tot_red, S_tot_red, V_tot_red= open_and_reduce_SVD(exp_ens, exp_case, rank, forecast=False, DNS=True, 
+        DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
+        
+    V_tot = V_tot_red
+    U_tot = U_tot_red
+    S_tot = S_tot_red
 
-def open_SHRED(exp_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, exp_plane='H390', full_planes=True, forecast=False):
+    #iterate planes from lower to upper and stack their U, S, V matrices on top of each other
+    for plane in range(num_planes-2,-1,-1):
+        DNS_plane = vel_planes[plane]
+        U, S, V = open_and_reduce_SVD(exp_ens, exp_case, rank, forecast=False, DNS=True, DNS_plane=DNS_plane, DNS_surf=False, DNS_case=DNS_case, exp=False)
+        
+        U_tot = np.hstack((U, U_tot))
+        S_tot = np.hstack((S, S_tot))
+        V_tot = np.hstack((V,V_tot))
+        
+    #extract surface elevation SVD and stack on top of the velocity U, S, V matrices
+    U_surf, S_surf, V_surf = open_and_reduce_SVD(exp_ens, exp_case, rank, forecast=False, DNS=True, DNS_plane=None, DNS_surf=True, DNS_case=DNS_case, exp=False)
+    U_tot = np.hstack((U_surf, U_tot))
+    S_tot = np.hstack((S_surf, S_tot))
+    V_tot = np.hstack((V_surf,V_tot))
+
+    
+    return U_tot, S_tot, V_tot
+
+
+'''--------------------------------------------------------------------------------------------------------------------------------------'''
+
+
+
+'''POST-SHRED UTILITY FUNCTIONS FOR SAVING/LOADING FILES, RECONSTRUCTED PLANES ETC'''
+
+#done-ish, edit filename
+def open_SHRED(exp_ens, case, rank, num_sensors, SHRED_ens, plane_list, DNS=True, exp_plane='H390', full_planes=True, forecast=False):
     '''loads V matrix for test data from SHRED runs, specified by rank value r, number of sensors (num_sensors) and the SHRED ensemble-case SHRED_ens
         returns 
         test_recons: V matrix for reconstruction 
@@ -876,20 +931,20 @@ def open_SHRED(exp_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, e
         else:
             plane_string ="_full_planes"
         if forecast==False:
-            SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
+            SHRED_fname = adr_loc + "\SHRED_r"+ str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
             if case=='RE1000':
-                SHRED_fname = adr_loc + "\SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
+                SHRED_fname = adr_loc + "\SHRED_RE1000_r"+ str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
         else:
-            SHRED_fname = adr_loc + "\SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
+            SHRED_fname = adr_loc + "\SHRED_FORECAST_r"+ str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + plane_string +".mat"
             if case=='RE1000':
-                SHRED_fname = adr_loc + "\SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
+                SHRED_fname = adr_loc + "\SHRED_FORECAST_RE1000_r"+ str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
                 
     else:
         if forecast:
             print("must change SHRED filename for Teetank forecast")
-            SHRED_fname = adr_loc + "\Teetank_FORECAST_case_"+ case + "_r" + str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + ".mat"
+            SHRED_fname = adr_loc + "\Teetank_FORECAST_case_"+ case + "_r" + str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) + ".mat"
         else:
-            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(exp_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
+            SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(exp_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(rank) +"_" +str(num_sensors) +"sensors_ens" + str(SHRED_ens) +".mat"
     with h5py.File(SHRED_fname, 'r') as SHRED:
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(SHRED.keys()))
@@ -901,18 +956,68 @@ def open_SHRED(exp_ens, case, r, num_sensors, SHRED_ens, plane_list, DNS=True, e
     return test_recons, test_ground_truth, test_indices
 
 
+#done-ish
+def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, exp_case, rank, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
+    """
+    Build ground-truth, SVD-truncated, and SHRED-reconstructed test stacks for an
+    experimental plane (or the surface) at specified test indices.
 
-def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, exp_case, r_new, SHRED_ens, num_sensor, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False,no_input_u_fluc=False):
-            
+    Parameters
+    ----------
+    plane : str
+        Experimental plane label (e.g., 'H390'); if `surface=True`, this refers to surface.
+    surf_fluc, u_fluc : np.ndarray or None
+        Surface/velocity fluctuation fields. If `no_input_u_fluc=True`, they are loaded internally.
+    V_tot_recons : np.ndarray
+        SHRED output V-matrix (time coefficients) for reconstruction.
+    V_tot_svd : np.ndarray
+        SVD V-matrix used in forecast mode.
+    test_indices : array-like
+        Indices of test snapshots (before lag shift).
+    X_surf, X_vel : np.ndarray
+        Grids used only for inferring (nx, ny) of surface/velocity fields.
+    experimental_ens : int
+        Experimental ensemble index to load/select data.
+    exp_case : str
+        Experimental case identifier (e.g., 'P25', 'P50').
+    rank : int
+        SVD truncation rank.
+    SHRED_ens : int
+        SHRED ensemble index (kept for bookkeeping).
+    num_sensor : int
+        Number of sensors.
+    U_tot_red, S_tot_red, V_tot_red : np.ndarray, optional
+        Preloaded truncated SVD factors; ignored if `open_svd=True`.
+    open_svd : bool, default True
+        If True, load and truncate SVD factors internally.
+    lags : int, default 52
+        Sensor sequence length; shifts test indices by `lags-1`.
+    forecast : bool, default False
+        Use forecast branch (different V-column layout).
+    surface : bool, default False
+        If True, operate on surface field instead of subsurface velocity.
+    no_input_u_fluc : bool, default False
+        If True, load `u_fluc`/`surf_fluc` from disk.
+
+    Returns
+    -------
+    u_fluc_test : np.ndarray
+        Ground-truth test stack, shape (ny, nx, n_test).
+    u_svd_test : np.ndarray
+        SVD-truncated test stack, shape (ny, nx, n_test).
+    u_recons_test : np.ndarray
+        SHRED-reconstructed test stack, shape (ny, nx, n_test).
+    u_fluc : np.ndarray
+        Full fluctuation field used to form `u_fluc_test` (for downstream metrics).
+    """        
     
-
     shift = test_indices + lags - 1
 
-    if forecast:
-        dimT=900
+    #if forecast:
+    #    dimT=900
 
-        #shift indices
-        shift = shift - dimT*(num_ensembles-1)
+    #    #shift indices
+    #    shift = shift - dimT*(num_ensembles-1)
 
     
     num_test_snaps = len(test_indices)
@@ -931,42 +1036,39 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
             u_mean = np.nanmean(u, axis=3, keepdims=True)
             u_fluc = u - u_mean
             u_fluc = u_fluc[experimental_ens-1]
-            
-
-
-    
+        
     u_fluc_test = u_fluc[:,:, shift]
     
 
     if forecast:
         #TODO fix forecast for teetank
 
-        U_u, S_u, U_surf, S_surf, V_tot_red= open_and_reduce_SVD(experimental_ens, exp_case, 1000, r_new, forecast=True)
+        U_u, S_u, U_surf, S_surf, V_tot_red= open_and_reduce_SVD(experimental_ens, exp_case, rank, forecast=True)
     
         #Extract SVD fields
-        surf_svd = U_surf@ np.diag(S_surf) @ np.transpose(V_tot_svd[:, 0+num_sensor:r_new+num_sensor])
+        surf_svd = U_surf@ np.diag(S_surf) @ np.transpose(V_tot_svd[:, 0+num_sensor:rank+num_sensor])
         
         print("surf_svd_shape0: ", surf_svd.shape)
         surf_svd_test = convert_2d_to_3d(surf_svd, X_surf.shape[1], X_surf.shape[0], num_test_snaps)
         del surf_svd
         print("surf_svd_shape: ", surf_svd_test.shape)
-        u_svd = U_u @ np.diag(S_u) @ np.transpose(V_tot_svd[:, r_new + num_sensor:2*r_new+num_sensor])
+        u_svd = U_u @ np.diag(S_u) @ np.transpose(V_tot_svd[:, rank + num_sensor:2*rank+num_sensor])
         
         u_svd_test = convert_2d_to_3d(u_svd, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
 
         #construct reconstruction
-        u_recons_test = U_u @ np.diag(S_u) @ np.transpose(V_tot_recons[:, r_new + num_sensor :2*r_new + num_sensor])
+        u_recons_test = U_u @ np.diag(S_u) @ np.transpose(V_tot_recons[:, rank + num_sensor :2*rank + num_sensor])
         del U_u, S_u
         u_recons_test = convert_2d_to_3d(u_recons_test, X_vel.shape[1], X_vel.shape[0], num_test_snaps)
 
         
-        surf_recons_test = U_surf @ np.diag(S_surf) @ np.transpose(V_tot_recons[:, 0 + num_sensor :r_new + num_sensor])
+        surf_recons_test = U_surf @ np.diag(S_surf) @ np.transpose(V_tot_recons[:, 0 + num_sensor :rank + num_sensor])
         del U_surf, S_surf
         surf_recons_test = convert_2d_to_3d(surf_recons_test, X_surf.shape[1], X_surf.shape[0], num_test_snaps)
     else:
         #Extract SVD fields
         if open_svd:
-            U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = open_and_reduce_SVD(experimental_ens, exp_case, 900, r_new, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, exp=True, plane=plane)
+            U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = open_and_reduce_SVD(experimental_ens, exp_case, rank, forecast=False, DNS=False, DNS_plane=None, DNS_surf=False, exp=True, plane=plane)
 
             if surface:
                 U_tot_red = U_tot_surf_red
@@ -984,8 +1086,8 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
             dimY = X_vel.shape[1]
             dimX = X_vel.shape[0]
         
-        V_tot_red = V_tot_red[:, plane_index*r_new :(plane_index+1)*r_new]
-        V_tot_recons = V_tot_recons[:, plane_index*r_new + num_sensor :(plane_index+1)*r_new + num_sensor]
+        V_tot_red = V_tot_red[:, plane_index*rank :(plane_index+1)*rank]
+        V_tot_recons = V_tot_recons[:, plane_index*rank + num_sensor :(plane_index+1)*rank + num_sensor]
         
         #construct svd truncation
         u_svd = U_tot_red @ np.diag(S_tot_red) @ np.transpose(V_tot_red)
@@ -999,8 +1101,8 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
     return u_fluc_test, u_svd_test, u_recons_test, u_fluc
 
 
-
-def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, r_new, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False, no_input_u_fluc=False):
+#done
+def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, rank, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=52, forecast=False, surface=False, no_input_u_fluc=False):
     """
     Assemble ground-truth, truncated-SVD, and SHRED-reconstructed velocity
     (or surface-elevation) snapshots for the specified DNS test indices.
@@ -1022,7 +1124,7 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
         (`shape = (nt, n_modes_total)`).
     test_indices : ndarray
         Indices of test snapshots in *original* time base.
-    r_new : int
+    rank : int
         Truncation rank).
     num_sensors : int
         Number of surface sensors prepended to the V–matrix.
@@ -1048,9 +1150,9 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     u_fluc_test : ndarray
         Full-rank ground-truth snapshots (`shape = (ny, nx, n_test)`).
     u_svd_test : ndarray
-        Corresponding truncated-SVD snapshots (rank ``r_new``).
+        Corresponding truncated-SVD snapshots 
     u_recons_test : ndarray
-        SHRED-reconstructed snapshots (rank ``r_new``).
+        SHRED-reconstructed snapshots 
     u_fluc : ndarray
         The full input cube (returned for convenience, possibly re-loaded).
 
@@ -1063,7 +1165,7 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     * Requires utility functions from `utilities` to locate DNS data and
       compute dimensions.
     """
-    teetank_ens=None
+    experimental_ens=None
     case=None
     shift = test_indices + lags - 1
     num_test_snaps = len(test_indices)
@@ -1073,18 +1175,18 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
     #extract test images from original data
     if no_input_u_fluc:
         if surface:
-            u_fluc = get_surface(DNS_case) #calling it u_fluc although it is surf_fluc, due to similar usage in both cases in this function
+            u_fluc = get_surface_DNS(DNS_case) #calling it u_fluc although it is surf_fluc, due to similar usage in both cases in this function
         else:
             u_fluc = get_velocity_plane_DNS(DNS_case, plane)
             
     u_fluc_test = u_fluc[:,:, shift]
 
     if open_svd:
-        U_tot_red, S_tot_red, V_tot_red = open_and_reduce_SVD(teetank_ens, case, 1000, r_new, forecast=False, DNS_new=True, DNS_plane=plane, DNS_surf=surface, DNS_case=DNS_case, exp=False)
+        U_tot_red, S_tot_red, V_tot_red = open_and_reduce_SVD(experimental_ens, case, rank, forecast=False, DNS=True, DNS_plane=plane, DNS_surf=surface, DNS_case=DNS_case, exp=False)
     else:
-        U_tot_red = U_tot_red[:, plane_index*r_new :(plane_index+1)*r_new]
-        S_tot_red = S_tot_red[plane_index*r_new :(plane_index+1)*r_new]
-        V_tot_red = V_tot_red[:, plane_index*r_new :(plane_index+1)*r_new]
+        U_tot_red = U_tot_red[:, plane_index*rank :(plane_index+1)*rank]
+        S_tot_red = S_tot_red[plane_index*rank :(plane_index+1)*rank]
+        V_tot_red = V_tot_red[:, plane_index*rank :(plane_index+1)*rank]
     
     #construct svd truncation
     u_svd = U_tot_red @ np.diag(S_tot_red) @ np.transpose(V_tot_red)
@@ -1096,13 +1198,13 @@ def get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, 
         plane=0
         plane_index = 0
 
-    u_recons_test = U_tot_red @ np.diag(S_tot_red) @ np.transpose(V_tot_recons[:, plane_index*r_new + num_sensors :(plane_index+1)*r_new + num_sensors]) 
+    u_recons_test = U_tot_red @ np.diag(S_tot_red) @ np.transpose(V_tot_recons[:, plane_index*rank + num_sensors :(plane_index+1)*rank + num_sensors]) 
     u_recons_test = convert_2d_to_3d(u_recons_test, dimY, dimX, num_test_snaps)
 
     return u_fluc_test, u_svd_test, u_recons_test, u_fluc
 
 
-
+#done
 def RMS_plane(data):
     '''calculates RMS amplitude of a 2d plane
     at a single time step'''
@@ -1115,7 +1217,7 @@ def RMS_plane(data):
     return RMS_data
 
 
-
+#done
 def time_avg_RMS(RMS_data):
     '''calculates time average of planar RMS amplitudes time series'''
     #RMS_data is (n_test)
@@ -1123,14 +1225,17 @@ def time_avg_RMS(RMS_data):
     return RMS_time_avg
 
 
-
+#done
 def get_RMS(data):
+    '''calculates time-averaged RMS values of a 
+        3D array 'data' (2D plane with time as 3rd axis)
+    '''
     RMS_data = RMS_plane(data)
     RMS_time_avg = time_avg_RMS(RMS_data)
     return RMS_time_avg
 
 
-
+#done
 def time_avg_RMS_ver2(RMS_data_true, RMS_data_recons):
     '''alternative time-averaging RMS function
     calculates RMS error between plane RMS signals, 
@@ -1138,3 +1243,90 @@ def time_avg_RMS_ver2(RMS_data_true, RMS_data_recons):
     err = RMS_data_true - RMS_data_recons
     RMS_time_avg = np.sqrt(np.mean(np.power(err,2)))
     return RMS_time_avg
+
+
+'''----------------------------------------------------------------------------------------------------------------------'''
+
+
+'''GENERAL UTILITY FUNCTIONS FOR OPERATIONS'''
+
+#done
+def multiply_along_axis(A, B, axis):
+    '''to multiply array A with array B along one axis'''
+    return np.swapaxes(np.swapaxes(A, axis, -1) * B, -1, axis)
+
+#done
+def cross_correlation(a,b):
+    '''calculates the normalized cross-correlation
+    between array a and b
+    '''
+
+    a = (a - np.mean(a)) / (np.std(a) * len(a))
+    b = (b - np.mean(b)) / (np.std(b))
+    c = np.correlate(a, b, 'full')
+    c = c[len(c)//2] #choose the zero lag value
+    return c
+
+
+#done
+def convert_3d_to_2d(X):
+    """
+    Flatten a 3D (Y, X, T) array of 2D fields over time into a 2D (YX, T) matrix.
+
+    Parameters
+    ----------
+    X : ndarray, shape (Y, X, T)
+        3D data with spatial dimensions (Y, X) and time T.
+
+    Returns
+    -------
+    X_out : ndarray, shape (Y*X, T)
+        Columns are time, rows are spatial points flattened in C-order
+        (consistent with reshape(..., order='C')).
+    """
+    time_dim = len(X[0,0])
+    Y_dim = len(X)
+    X_dim = len(X[0])
+    X_out = np.reshape(X, (X_dim*Y_dim, time_dim), order='C')
+    return X_out
+
+
+#done
+def convert_2d_to_3d(X, X_dim, Y_dim, time_dim):
+    """
+    Unflatten a 2D (YX, T) matrix back to a 3D (Y, X, T) array of 2D fields.
+
+    Parameters
+    ----------
+    X : ndarray, shape (Y_dim*X_dim, time_dim)
+        Flattened spatial data with columns as time.
+    X_dim : int
+        Number of points in the x-direction.
+    Y_dim : int
+        Number of points in the y-direction.
+    time_dim : int
+        Number of time snapshots T.
+
+    Returns
+    -------
+    X_out : ndarray, shape (Y_dim, X_dim, time_dim)
+        3D array reconstructed using C-order reshape; inverse of convert_3d_to_2d.
+    """
+    #X = np.transpose(X)
+    X_out = np.reshape(X, (Y_dim, X_dim, time_dim))
+    #print("X_out: ", X_out)
+    return X_out
+
+
+#done
+def create_GIF(filenames, gif_name):
+    '''takes in a list of filename adresses and creates a GIF 
+        that is saved with name given by gif_name
+    '''
+    print("Creating GIF\n")
+    with imageio.get_writer(f'{gif_name}.gif', mode='I') as writer:
+        for filename in filenames:
+            image = imageio.imread(filename)
+            writer.append_data(image)
+
+    print('GIF saved\n')

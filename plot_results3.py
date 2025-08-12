@@ -6,10 +6,114 @@ import processdata3 as processdata
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+'''Below are plotter functions needed to reproduce figures. These are called upon in the main Jupyter Notebook file'''
 
 
-#TODO: fix file name dependency
+'''Plotter for Fig. 3'''
+#DONE
+def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
+    '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
+     
+    Parameters
+    ----------
+    DNS_case : str
+        DNS case identifier (e.g. "S1", "S2").
+    plane : int
+        Horizontal plane index (between 1-57 for S1, 1-76 for S2).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
 
+    Returns
+        None '''
+
+    
+    DNS_case = utilities.case_name_converter(DNS_case)
+
+    #extract raw velocity field
+    u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
+    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+
+    #get SVD matrices from pre-calculated saved file:
+    U, S, V = utilities.open_SVD(experimental_ens=None, vel_fluc=False, variable='u', Teetank=False, teetank_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
+                               DNS_surf=False, DNS_case=DNS_case, experimental_plane='H390')
+    
+    #get all singular values
+    S_tot = utilities.get_singular_values_full(DNS_case, plane)
+    
+    #calculate PSD spectrum, to extract wavenumbers for binning
+    spectra_ground_truth, k_bins = processdata.calculate_psd(u_fluc, dx=1.0, dy=1.0)
+    
+    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
+    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
+
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens=1, plane=plane)
+
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
+    plot_svd_and_spectra(U, np.transpose(V), S_tot, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=1000, name="surf")
+
+
+'''Plotter for Fig. 4'''
+#DONE
+def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
+    '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
+     
+    Parameters
+    ----------
+    exp_case : str
+        Experiment identifier (e.g. "E1", "E2").
+    plane : int
+        Horizontal plane index (1 = H395, 2 = H390, ...).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
+    ensembles : list[int]
+        List of ensemble IDs to load; the first entry is used
+        for raw‐field visualisation.
+
+    Returns
+        None '''
+
+
+    exp_case = utilities.case_name_converter(exp_case)
+    
+    #extract raw velocity field
+    u_fluc = utilities.get_velocity_plane_teetank(exp_case, plane)
+    ensemble = ensembles[0]
+    
+    dimX, dimY, dimT = utilities.get_dims_teetank_vel()
+    depths = ['H395', 'H390', 'H375', 'H350', 'H300']
+    depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
+    
+    #open pre-calculated SVD matrices
+    #NOTE: here we separate between matrices for velocity 'u' and surface elevation 'eta' due to difference in geometry/size
+        #but time dynamics of same sampling and length, so the V matrices are stacked together
+        #V_tot: matrix with horizontally stacked V matrices from eta (surface elevation field) and u (velocity field of chosen plane) respectively
+    U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = utilities.open_SVD(ensemble, vel_fluc=False, variable='u', exp=True, experimental_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, experimental_plane=depth)
+    
+    #exctract V matrix for velocity field, from the total stacked V matrix
+    V_tot_u = V_tot[:, 900:]
+
+    #calculate PSD spectrum, to extract wavenumbers for binning
+    spectra_ground_truth, k_bins = processdata.calculate_psd_1d(u_fluc[ensemble-1], dx=1e-3, dy=1e-3)
+
+    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
+    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
+
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_exp(u_fluc, rank_list, exp_case, ensembles, depth)
+
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
+    plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
+
+'''Helper-function for Figs. 3-4'''
 #DONE
 def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins, labels = None, nx=256, ny=256, nt=12500, rank=100, name="surf"):
     """
@@ -173,458 +277,584 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
 
 
+'''----------------------------------------------------------------------------------------------------------------------'''
+
+'''PLOTTING SHRED RESULTS'''
+
+
+
+'''Plotter for Fig. 6'''
 #DONE
-def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
-    '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
-     
-    Parameters
-    ----------
-    DNS_case : str
-        DNS case identifier (e.g. "S1", "S2").
-    plane : int
-        Horizontal plane index (between 1-57 for S1, 1-76 for S2).
-    rank_list : list[int]
-        Sequence of SVD truncation ranks to compare.
-    mode_list : list[int]
-        Indices of singular modes to visualise (0‑based).
-    labels : list[str]
-        Legend labels for the different rank reconstructions.
-
-    Returns
-        None '''
-
-    
-    DNS_case = utilities.case_name_converter(DNS_case)
-
-    #extract raw velocity field
-    u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
-    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
-
-    #get SVD matrices from pre-calculated saved file:
-    U, S, V = utilities.open_SVD(1000, ens=None, vel_fluc=False, variable='u', Teetank=False, teetank_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
-                               DNS_surf=False, DNS_case=DNS_case, plane='H390')
-    
-    #get all singular values
-    S_tot = utilities.get_singular_values_full(DNS_case, plane)
-    
-    #calculate PSD spectrum, to extract wavenumbers for binning
-    spectra_ground_truth, k_bins = utilities.compute_psd(u_fluc, dx=1.0, dy=1.0)
-    
-    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
-    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
-
-    #calculate PSD spectrum for a range of rank values r given in the rank_list
-    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens=1, plane=plane)
-
-    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
-    plot_svd_and_spectra(U, np.transpose(V), S_tot, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=1000, name="surf")
-
-
-
-#DONE
-def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
-    '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
-     
-    Parameters
-    ----------
-    exp_case : str
-        Experiment identifier (e.g. "E1", "E2").
-    plane : int
-        Horizontal plane index (1 = H395, 2 = H390, ...).
-    rank_list : list[int]
-        Sequence of SVD truncation ranks to compare.
-    mode_list : list[int]
-        Indices of singular modes to visualise (0‑based).
-    labels : list[str]
-        Legend labels for the different rank reconstructions.
-    ensembles : list[int]
-        List of ensemble IDs to load; the first entry is used
-        for raw‐field visualisation.
-
-    Returns
-        None '''
-
-
-    exp_case = utilities.case_name_converter(exp_case)
-    
-    #extract raw velocity field
-    u_fluc = utilities.get_velocity_plane_teetank(exp_case, plane)
-    ensemble = ensembles[0]
-    
-    dimX, dimY, dimT = utilities.get_dims_teetank_vel()
-    depths = ['H395', 'H390', 'H375', 'H350', 'H300']
-    depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    
-    #open pre-calculated SVD matrices
-    #NOTE: here we separate between matrices for velocity 'u' and surface elevation 'eta' due to difference in geometry/size
-        #but time dynamics of same sampling and length, so the V matrices are stacked together
-        #V_tot: matrix with horizontally stacked V matrices from eta (surface elevation field) and u (velocity field of chosen plane) respectively
-    U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = utilities.open_SVD(900, ensemble, vel_fluc=False, variable='u', exp=True, experimental_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, plane=depth)
-    
-    #exctract V matrix for velocity field, from the total stacked V matrix
-    V_tot_u = V_tot[:, 900:]
-
-    #calculate PSD spectrum, to extract wavenumbers for binning
-    spectra_ground_truth, k_bins = utilities.compute_psd_1d(u_fluc[ensemble-1], dx=1e-3, dy=1e-3)
-
-    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
-    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
-
-    #calculate PSD spectrum for a range of rank values r given in the rank_list
-    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_exp(u_fluc, rank_list, exp_case,  900, ensembles, depth)
-
-    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
-    plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
-
-
-
-#DONE
-def plot_psd_compare(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
+def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_snap_index, lags=52, forecast=False, add_surface=False, full_planes=True, DNS_case='S2'):
     """
-    Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
-    and SHRED-reconstructed velocity fields for all cases
+    Create side-by-side image comparisons of ground truth, SVD truncation,
+    and SHRED reconstruction for selected DNS planes (and optionally the
+    free surface), then save the figures to disk. If more than 2 velocity planes, 
+    the comparisons are plotted one by one. Else, we combine them in one figure.
 
-    ----------
     Parameters
     ----------
-    vel_planes
-        Four-element list giving the integer plane IDs to use for
-        S1, S2, E1, E2 **in that order**.
-        For the experiments, 1→'H395', 2→'H390', … 5→'H300'.
-    SHRED_ensembles
-        List ``[ens_S1, ens_S2, ens_E1, ens_E2]`` selecting which SHRED run
-        (seed) to load for each case.
-    experimental_ensembles
-        Two-element list ``[ens_P25, ens_P50]`` selecting which experimental
-        realisation (run) to plot for E1 and E2.
-    r_vals
-        Rank used in the reduced SVD for each case
-        ``[r_S1, r_S2, r_E1, r_E2]``.
-    num_sensors
-        Number of surface sensors used in every SHRED run
-        (important for file naming).
+    rank : int
+        Truncation rank used for both SVD and SHRED reconstruction.
+    SHRED_ens : int
+        SHRED ensemble index (seed) used when loading saved `.mat` files.
+    vel_planes : list[int]
+        DNS velocity-plane indices to visualise.
+    num_sensors : int
+        Number of surface sensors present in the SHRED input (used only
+        for filename construction).
+    test_snap_index : int
+        Time index of the snapshot to display from the test set.
+    lags : int, default 52
+        LSTM sequence length used when SHRED was trained (needed for
+        correct indexing in the test set).
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED results; otherwise reconstruction.
+    add_surface : bool, default False
+        If *True*, plot an additional figure for the surface elevation.
+    full_planes : bool, default True
+        If *True*, SHRED was trained on **all** planes; otherwise only the
+        subset in ``vel_planes`` (affects plane indexing).
+    DNS_case : {"S1", "S2"}, default "S2"
+        DNS dataset identifier.
 
     Returns
     -------
     None
-        The function is for plotting only, with a 4 panel 
-        plot saved as a pdf.
+        Generates and saves PNG figures; no data are returned.
 
+    Notes
+    -----
+    * Assumes SHRED outputs are stored in `.mat` files located in
+      `adr_loc_3` with naming convention used in
+      :pyfunc:`utilities.open_SHRED`.
+    * Figure filenames follow
+      ``compare_recon_<DNS_case>_plane<plane>_rank<r>_DNS_ens<SHRED_ens>.png``..
     """
     
+    DNS_case = utilities.case_name_converter(DNS_case)
 
-    #plane name library for experiments
-    planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+    #set location folder for plots
+    #TODO: change address
+    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS"
+    
+    if DNS_case=='RE2500':
+        tot_num_planes=76
+    else:
+        tot_num_planes=57
 
-    ##case E1 (P25) --------------------
+    #create mesh
+    XX,YY = utilities.get_mesh_DNS(DNS_case)
+
+    #get SHRED V matrices
+    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, DNS_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast)
+
+    #get surface elevation
+    all_rows = []
+    
+    if add_surface:
+        plane=0 #correct plane number for surface elevation 
+        plane_index=0
+        surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, np.zeros(1), V_test_recons, V_test_indices, rank,
+                                                                                                num_sensors, lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
+        del u_fluc2
+
+        #extract specific snapshot
+        surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+        surf_svd = surf_svd_test[:, :, test_snap_index]
+        surf_recons = surf_recons_test[:, :, test_snap_index]
+        row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
+        all_rows.append(row1)
         
-    plane = planes[vel_planes[2]-1]
-    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P25', plane)
-    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+        if len(vel_planes) >= 3:
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+            for j, snapshot in enumerate(row1):
+                ax = axs[j]
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+            
+                ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+
+            filename = adr_loc_3 + "compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
     
-    #get SVDs correctly
-    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[0], 'P25', 900, r_vals[2], forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, exp=True, plane=plane)
-    surf_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25', r_vals[2], 
-                                                                                                            SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
-                                                                                                            surface=False,no_input_u_fluc=True)
-    gt_fft_E1, recon_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
-    gt_fft, svd_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
-    spectral_max_E1=np.amax(gt_fft_E1)
-    gt_psd_E1 = gt_fft_E1/spectral_max_E1
-    recon_psd_E1 = recon_fft_E1/spectral_max_E1
-    svd_psd_E1 = svd_fft_E1/spectral_max_E1
-    integral_length_scale=0.051
-    k_vals_E1 = integral_length_scale*k_vals_E1
-    k_cutoff_E1 = k_vals_E1[7]
-    print("cutoff normalized wavenumber k for case E1: ", k_cutoff_E1)
-    
+    #iterate and plot velocity planes
+    for i in range(len(vel_planes)):
+        print("plane ", vel_planes[i])
+        plane = vel_planes[i]
+        if full_planes and len(vel_planes) < tot_num_planes:
+            plane_index = vel_planes[i]
+        else:
+            plane_index = i+1 #shift with 1 to compensate for surface elevation when loading V matrices
+        #construct raw fields
+        u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
+        
+        print("getting test images")
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_test_recons, V_test_indices, rank,
+                                                                                            num_sensors, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
+        del u_fluc2
+        print("test images extracted")
+        #construct SVD fields
+        u_fluc_test = u_fluc_test[:,:,test_snap_index]
+        u_svd = u_svd_test[:, :, test_snap_index]
 
-    #case E2 (P50) ------------------------------
+        #construct SHRED reconstruction fields
+        
+        u_recons = u_recons_test[:, :, test_snap_index]
 
-    plane = planes[vel_planes[3]-1]
-    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P50', plane)
-    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
-    
-    #get SVDs correctly
-    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[1], 'P50', 900, r_vals[3], forecast=False, DNS_new=False, DNS_plane=None,
-                                                                                                                   DNS_surf=False, exp=True, plane=plane)
-    surf_fluc=None
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50', r_vals[3], 
-                                                                                                            SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
-                                                                                                            surface=False,no_input_u_fluc=True)
-    gt_fft_E2, recon_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
-    gt_fft, svd_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
-    spectral_max_E2=np.amax(gt_fft_E2)
-    gt_psd_E2 = gt_fft_E2/spectral_max_E2
-    recon_psd_E2 = recon_fft_E2/spectral_max_E2
-    svd_psd_E2 = svd_fft_E2/spectral_max_E2
-    integral_length_scale=0.068
-    k_vals_E2 = integral_length_scale*k_vals_E2
-    k_cutoff_E2 = k_vals_E2[7] 
-    print("cutoff normalized wavenumber k for case E2: ", k_cutoff_E2)
-    
-    #DNS case S1 (RE1000) ----------------------------------
+        #all_rows_1 = []
+        row = [u_fluc_test, u_svd, u_recons]  # Second row
+        #all_rows_1.append(row)
 
-    stack_planes=[vel_planes[0]] 
-    plane = vel_planes[0]
-    integral_length_scale=utilities.get_integral_length_scale('RE1000')
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
-  
-    #then iterate SHRED ensembles
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
-                                                                     full_planes=True, forecast=False)
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE1000', plane, 1, None, V_tot_recons, test_indices, r_vals[0], 
-                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
-                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
-    gt_fft_S1, recon_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE1000')
-    gt_fft, svd_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE1000')
-    spectral_max_S1=np.amax(gt_fft_S1)
-    gt_psd_S1 = gt_fft_S1/spectral_max_S1
-    recon_psd_S1 = recon_fft_S1/spectral_max_S1
-    svd_psd_S1 = svd_fft_S1/spectral_max_S1
-    k_vals_S1 = integral_length_scale*k_vals_S1
-    k_cutoff_S1 = k_vals_S1[13]
-    print("cutoff normalized wavenumber k for case S1: ", k_cutoff_S1)
-    
-    #DNS case S2 (RE2500) -----------------------------------
-    
-    stack_planes=[vel_planes[1]] 
-    plane = vel_planes[1]
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
-    
-    #then iterate SHRED ensembles
+        if len(vel_planes) < 3:
+            all_rows.append(row)
 
-    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE2500', r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
-                                                                     full_planes=True, forecast=False)
- 
-    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE2500', plane, 1, None, V_tot_recons, test_indices, r_vals[1], 
-                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
-                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
-    integral_length_scale=utilities.get_integral_length_scale('RE2500')
-    gt_fft_S2, recon_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE2500')
-    gt_fft, svd_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE2500')
-    spectral_max_S2=np.amax(gt_fft_S2)
-    gt_psd_S2 = gt_fft_S2/spectral_max_S2
-    recon_psd_S2 = recon_fft_S2/spectral_max_S2
-    svd_psd_S2 = svd_fft_S2/spectral_max_S2
-    k_vals_S2 = integral_length_scale*k_vals_S2
-    k_cutoff_S2 = k_vals_S2[11]
+        # Plot each snapshot in the grid
+        if len(vel_planes) >= 3:
+        
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        
+            for j, snapshot in enumerate(row):
+                #colour_levels = np.linspace(-u_scale,u_scale, 500)
+                ax = axs[j]
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+                ax.imshow(snapshot,  cmap='RdBu_r', interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
 
-    print("cutoff normalized wavenumber k for case S2: ", k_cutoff_S2)
-
-    #Plot figures
-    fig = plt.figure(figsize=(14, 10))
-    gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
-    
-
-    # Row 1: RMS for u and w
-    ax1 = fig.add_subplot(gs[0, 0])
-    #ax1.plot(test_snaps1, mse_snapshots_RE1000, label='MSE S1')
-    #ax1.plot(test_snaps1, psd_snapshots_RE1000, label='PSD error S1')
-    #ax1.plot(test_snaps1, ssim_snapshots_RE1000, label='SSIM S1')
-    
-    #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
-    #ax2.tick_params(axis='y', labelcolor='r')
-    ax1.loglog(k_vals_S1, gt_psd_S1, linestyle='-', color='k', label='Ground truth')
-    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='Compressed')
-    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='SHRED recons')
-    ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
-    ax1.set_ylabel('PSD', fontsize=15)
-    ax1.grid()
-    ax1.legend(fontsize=13)
-    ax1.set_ylim(1e-3, 3)
-    ax1.set_xlim(k_vals_S1[0], 11)
-    ax1.set_xlabel("$k L_{\infty}$", fontsize=15)
-
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax2.loglog(k_vals_S2, gt_psd_S2, linestyle='-', color='k', label='Ground truth')
-    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='Compressed')
-    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='SHRED recons')
-    ax2.plot([k_cutoff_S2, k_cutoff_S2], [1e-3,3], linestyle='-', color='darkviolet')
-    #ax2.set_ylabel('PSD', fontsize=15)
-    ax2.grid()
-    ax2.legend(fontsize=13)
-    ax2.set_ylim(1e-3, 3)
-    ax2.set_xlim(k_vals_S2[0], 11)
-    ax2.set_xlabel("$k L_{\infty}$", fontsize=15)
+            filename = adr_loc_3 + "compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
+            plt.close()
 
 
 
-    ax3 = fig.add_subplot(gs[1,0])
-    ax3.loglog(k_vals_E1, gt_psd_E1, linestyle='-', color='k', label='Ground truth')
-    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='Compressed')
-    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='SHRED recons')
-    ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
-    ax3.set_ylabel('PSD', fontsize=15)
-    ax3.grid()
-    ax3.legend(fontsize=13)
-    ax3.set_ylim(1e-3, 3)
-    ax3.set_xlim(k_vals_E1[0], 11)
-    ax3.set_xlabel("$k L_{\infty}$", fontsize=15)
+    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
+    #plot for paper
+    if len(vel_planes) < 3:
+        spacing = 0.1
+        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
+        ax1 = axs[0,0]
+        ax2 = axs[0,1]
+        ax3 = axs[0,2]
+        ax1.set_title("Ground truth")
+        ax2.set_title("Compressed")
+        ax3.set_title("Reconstruction")
+        for k, row in enumerate(all_rows):
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
 
-    ax4= fig.add_subplot(gs[1,1])
-    ax4.loglog(k_vals_E2, gt_psd_E2, linestyle='-', color='k', label='Ground truth')
-    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='Compressed')
-    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='SHRED recons')
-    ax4.plot([k_cutoff_E2, k_cutoff_E2], [1e-3,3], linestyle='-', color='darkviolet')
-    #ax4.set_ylabel('PSD', fontsize=15)
-    ax4.grid()
-    ax4.legend(fontsize=13)
-    ax4.set_ylim(1e-3, 3)
-    ax4.set_xlim(k_vals_E2[0], 11)
-    ax4.set_xlabel("$k L_{\infty}$", fontsize=15)
+                ax = axs[k,j]
+             
+                ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                
+                ax.axis('off')
 
-    for ax in [ax1, ax2, ax3, ax4]:
-        ax.tick_params(axis='x', which='major', labelsize=13)
-        ax.tick_params(axis='y', which='major', labelsize=13)
-
-    ax2.tick_params(left=False, labelleft=False)
-    ax4.tick_params(left=False, labelleft=False)
-
-    fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\psd_compare" 
-    filename = adr_loc_3
+    filename = adr_loc_3 + "compare_recon_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
+    fig.savefig(adr_loc_3 + "compare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) + ".pdf", format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
+    plt.close()
+
+
+'''Plotter for Fig 7'''
+#DONE
+def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
+                              num_sensors=3, lags=52, forecast=False, add_surface=False):
+    """
+    Plot ground-truth, rank-r SVD, and SHRED-reconstructed snapshots of
+    T-tank experimental data for the chosen velocity planes (and
+    optionally the surface), then save the figures.
+
+
+    Parameters
+    ----------
+    rank : int
+        SVD truncation rank used for SHRED and comparison plots.
+    exp_case : {"E1", "E2"}
+        Experimental case identifier (converted internally to "E1"/"E2").
+    experimental_ens : int
+        Experimental ensemble index to read SVD data from.
+    SHRED_ens : int
+        SHRED ensemble seed used when saving reconstructions.
+    plane_list : list[int]
+        Indices (1-based: 1 = H395, 2 = H390, …) of velocity planes to plot.
+    test_snap_index : int
+        Snapshot index within the test set to visualise.
+    u_fluc, surf_fluc : ndarray or None
+        Optional pre-loaded velocity / surface time series.  If *None*,
+        data are loaded internally.
+    num_sensors : int, default 3
+        Number of surface sensors used in SHRED (filename bookkeeping).
+    lags : int, default 52
+        LSTM sequence length used in training; required for correct
+        indexing when extracting test snapshots.
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED reconstructions.
+    add_surface : bool, default False
+        Plot an additional figure for surface elevation.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    * Assumes SHRED outputs are stored in `.mat` files and accessed via
+      :pyfunc:`utilities.open_SHRED`.
+    * Hard-coded output path `adr_loc_3`; adjust for other environments.
+    """
+    #TODO: Add other velocity fields to the plotting function as I get them
+    #set location folder for plots
+    
+    exp_case = utilities.case_name_converter(exp_case)
+    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\Tee_tank"
+    
+    
+    #iterate test snaps:
+    #filenames_snaps = []
+  
+    
+    for i in range(len(plane_list)):
+        
+        planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+        plane = planes[plane_list[i]-1]
+        print("plane: ", plane)
+        X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(exp_case, plane)
+        #plane_index = i+1
+        #construct raw fields
+
+        #get SHRED V matrices
+        test_recons, test_ground_truth, test_indices = utilities.open_SHRED(experimental_ens, exp_case, rank, num_sensors, 
+                                                                            SHRED_ens, plane_list, DNS=False, plane=plane, full_planes=True, forecast=forecast)
+
+        #get surface elevation
+        all_rows = []
+        if add_surface:
+            #plane=0
+            #plane_index=0
+            surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
+                                                                                                            X_surf, X_vel, experimental_ens, exp_case, rank, 
+                                                                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True,
+                                                                                                              lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
+            del u_fluc2
+            surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+            surf_svd = surf_svd_test[:, :, test_snap_index]
+            surf_recons = surf_recons_test[:, :, test_snap_index]
+            row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
+            all_rows.append(row1)
+            if len(plane_list) >= 3:
+                spacing = 0.1
+                fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+                for j, snapshot in enumerate(row1):
+                    if j==0:
+                        min_val = np.min(snapshot)
+                        max_val = np.max(snapshot)
+              
+                    ax = axs[j]
+                    ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                    ax.axis('off')
+
+                filename = adr_loc_3 + "Teetank_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+                plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+                plt.show()
+    
+
+        print("getting test images")
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, rank, 
+                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
+        del u_fluc2
+        print("test images extracted")
+        #construct SVD fields
+        u_fluc_test = u_fluc_test[:,:,test_snap_index]
+        u_svd = u_svd_test[:, :, test_snap_index]
+
+        #construct SHRED reconstruction fields
+        
+        u_recons = u_recons_test[:, :, test_snap_index]
+
+        #all_rows_1 = []
+        row = [u_fluc_test, u_svd, u_recons]  # Second row
+        #all_rows_1.append(row)
+
+        if len(plane_list) < 3:
+            all_rows.append(row)
+
+        # Plot each snapshot in the grid
+        if len(plane_list) >= 3:
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+            
+        
+                ax = axs[j]
+                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+
+
+        # Adjust layout and display the plot
+        # plt.tight_layout()
+        #plt.show()
+
+            filename = adr_loc_3 + "Teetank_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
+            plt.close()
+
+
+
+    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
+    #plot for paper
+    if len(plane_list) < 3:
+        spacing = 0.1
+        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
+        
+        for k, row in enumerate(all_rows):
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+
+
+
+                ax = axs[k,j]
+                #contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmaps[k])
+                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+                #ax.axis('square')
+                #my_ticks = np.arange(-0.75,0.75,0.15)
+                #cb = plt.colorbar(ticks=my_ticks)
+                #ax1.tick_params(axis='both', labelsize=16)
+                #cb.set_label(label='u [m/s]', fontsize=16)
+                #fig.colorbar(contour1, ax=ax1, ticks=my_ticks, label="u' [m/s]")
+
+
+                #ax = axs[k, j]
+                #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
+                #ax.axis('off')
+        plt.show()
+        filename = adr_loc_3 + "Teetank_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)
+        #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
+        fig.savefig(filename + ".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
+      
+
+
+'''Plotter for Fig. 8'''
+#DONE
+def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
+    """
+    Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
+    four flow cases – two DNS (S1/S2) and two experimental (E1/E2) – and
+    compare ground truth against SHRED reconstructions.
+
+    A 4 × 3 panel figure is created:
+
+    ==========================  =========================================
+    Row                          Cases plotted (left → right)
+    --------------------------  -----------------------------------------
+    0 (top)                     S1 (RE1000) snapshots *i = 0,1,2*
+    1                            S2 (RE2500) snapshots *i = 0,1,2*
+    2                           E1 (P25)    snapshots *i = 0,1,2*
+    3 (bottom)                  E2 (P50)    snapshots *i = 0,1,2*
+    ==========================  =========================================
+
+    Each subplot shows:
+
+    * Solid line – ground-truth RMS profile at snapshot *i*
+    * Dashed line – SHRED-reconstructed RMS profile
+    * Depth axis optionally normalised (``z_norm``)
+
+    The final figure is saved both as PNG and PDF.
+
+    Parameters
+    ----------
+    experimental_ens : int
+        Experimental ensemble index used to load SVD/RMS data.
+    SHRED_ens_DNS : int
+        SHRED ensemble seed for DNS cases.
+    SHRED_ens_exp : int
+        SHRED ensemble seed for experimental cases.
+    snap_indices_DNS : list[int]
+        Three snapshot indices to plot for S1 and S2.
+    snap_indices_exp : list[int]
+        Three snapshot indices to plot for E1 and E2.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks (unused here but reserved for future use).
+    num_sensors : int
+        Number of surface sensors (used only in filename bookkeeping).
+    colors : tuple[str, str, str, str]
+        Line colours for S1, S2, E1, E2 (in that order).
+    labels : tuple[tuple[str, str], ...]
+        Label pairs ``(ground_truth_label, recon_label)`` per snapshot.
+    z_norm : {"int", "taylor", "mixed", None}, default "int"
+        Normalisation for the vertical axis:
+        * ``"int"``  →  integral length scale  
+        * ``"taylor"`` → Taylor microscale  
+        * ``"mixed"``  →  √(Lλ L∞)  
+        * ``None``     →  raw grid index
+
+    Returns
+    -------
+    None
+        Produces a Matplotlib figure and writes files:
+
+        * ``.../Results/DNS_cases_rms_instantaneous.png``
+        * ``.../Results/DNS_cases_rms_instantaneous.pdf``
+
+    Notes
+    -----
+    * Requires pre-computed `.mat` files created by
+      ``processdata.open_instantaneous_rms_profile(_exp)``.
+    """
+
+    rms_gt_S1, rms_recons_S1 = processdata.open_instantaneous_rms_profile('RE1000', SHRED_ens_DNS)
+    rms_gt_S2, rms_recons_S2 = processdata.open_instantaneous_rms_profile('RE2500', SHRED_ens_DNS)
+    rms_gt_E1, rms_recons_E1 = processdata.open_instantaneous_rms_profile_exp('P25', experimental_ens, SHRED_ens_exp)
+    rms_gt_E2, rms_recons_E2 = processdata.open_instantaneous_rms_profile_exp('P50', experimental_ens, SHRED_ens_exp)
+    
+    #choose snap indices
+    rms_gt_S1 = rms_gt_S1[:, snap_indices_DNS]
+    rms_recons_S1 = rms_recons_S1[:,snap_indices_DNS]
+
+    rms_gt_S2= rms_gt_S2[:,snap_indices_DNS]
+    rms_recons_S2 = rms_recons_S2[:,snap_indices_DNS]
+
+    rms_gt_E1 = rms_gt_E1[:, snap_indices_exp]
+    rms_recons_E1 = rms_recons_E1[:,snap_indices_exp]
+
+    rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
+    rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
+    
+    #plot
+    z_S1 = utilities.get_zz_DNS('RE1000')
+    z_S2 = utilities.get_zz_DNS('RE2500')
+    z_S1 = utilities.get_normalized_z(z_S1, z_norm, 'RE1000')
+    z_S2 = utilities.get_normalized_z(z_S2, z_norm, 'RE2500')
+
+    z_exp = utilities.get_zz_exp()
+    z_E1 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P25')
+    z_E2 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P50')
+
+    
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+    })
+    
+    fig = plt.figure(figsize=(15, 20))
+    gs = GridSpec(4, 3, figure=fig, hspace=0.25, wspace=0.1)
+    
+
+
+    labels1=['Ground Truth, Re=1000', 'Recons, Re=1000']
+    #make z_label:
+    if z_norm=='taylor':
+        z_label='$z/L_{\lambda}$'
+    elif z_norm == 'int':
+        z_label='$z/L_{\infty}$'
+    elif z_norm=='mixed':
+        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
+    else:
+        z_label = None
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[0, 2])
+
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax5= fig.add_subplot(gs[1, 1])
+    ax6 = fig.add_subplot(gs[1, 2])
+
+    ax7 = fig.add_subplot(gs[2, 0])
+    ax8= fig.add_subplot(gs[2, 1])
+    ax9 = fig.add_subplot(gs[2, 2])
+
+    ax10 = fig.add_subplot(gs[3, 0])
+    ax11= fig.add_subplot(gs[3, 1])
+    ax12 = fig.add_subplot(gs[3, 2])
+    
+    axes = [[ax1, ax2, ax3], [ax4, ax5, ax6], [ax7, ax8, ax9], [ax10, ax11, ax12]]
+
+    for i in range(len(snap_indices_DNS)):
+        #Row 1: RMS for u and w
+        print(i)
+        ax_S1 = axes[0][i]
+        ax_S1.plot(rms_recons_S1[:,i], z_S1, linestyle='--', color=colors[0], label=labels[i][1])
+        ax_S1.plot(rms_gt_S1[:,i], z_S1, linestyle='-', color=colors[0], label=labels[i][0])
+
+        ax_S2 = axes[1][i]
+        ax_S2.plot(rms_recons_S2[:,i], z_S2, linestyle='--', color=colors[1], label=labels[i][1])
+        ax_S2.plot(rms_gt_S2[:,i], z_S2, linestyle='-', color=colors[1], label=labels[i][0])
+
+        ax_E1 = axes[2][i]
+        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
+        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
+
+        ax_E2 = axes[3][i]
+        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
+        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
+        
+        ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=18)
+        ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=18)
+        ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=18)
+        ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=18)
+
+        ax_S1.set_xlim((0.06,0.21))
+        ax_S2.set_xlim((0.055,0.19))
+        ax_E1.set_xlim((0.65,2.3))
+        ax_E2.set_xlim((0.3,2.8))
+        ax_E1.set_ylim((-2.0, 0.001))
+        ax_E2.set_ylim((-1.5, 0.001))
+        if i>0:
+            ax_S1.set_yticklabels([])
+            ax_S2.set_yticklabels([])
+            ax_E1.set_yticklabels([])
+            ax_E2.set_yticklabels([])
+        ax_S1.grid()
+        ax_S2.grid()
+        ax_E1.grid()
+        ax_E2.grid()
+        if i==0:
+            ax_S1.legend(fontsize=14)
+            ax_S2.legend(fontsize=14)
+            ax_E1.legend(fontsize=14)
+            ax_E2.legend(fontsize=14)
+
+    ax1.set_ylabel(z_label, fontsize=18)
+    ax4.set_ylabel(z_label, fontsize=18)
+    ax7.set_ylabel(z_label, fontsize=18)
+    ax10.set_ylabel(z_label, fontsize=18)
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12]:
+        ax.tick_params(axis='x', which='major', labelsize=16)
+        #if ax==ax1 or ax==ax4 or ax==ax7 or ax==ax10:
+        ax.tick_params(axis='y', which='major', labelsize=16)
+    #fig.tight_layout()
+    plt.show()
+    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
+    filename = adr_loc_3 + "rms_instantaneous"
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
 
-def plot_psd_rank_comparison(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
-    
-    case = utilities.case_name_converter(case)
-
-    psd_ground_truth, psd_compr, psd_recon, k_vals = processdata.calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens)
-    
-    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, labels_recon=None, labels_compr=None, split_rank=split_rank, rank_list=r_vals)
-
-
-def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_recon=None, labels_compr=None, split_rank=0, rank_list=None):
-    """
-    Plots PSD comparisons for reconstructed and compressed data along with ground truth.
-
-    Parameters:
-    ----------
-    psd_recon : numpy.ndarray
-        Array of PSDs from reconstructed data (shape: [n_psds, n_frequencies]).
-    psd_compr : numpy.ndarray
-        Array of PSDs from compressed data (shape: [n_psds, n_frequencies]).
-    psd_ground_truth : numpy.ndarray
-        Array of the ground truth PSD (shape: [n_frequencies]).
-    k_bins : numpy.ndarray
-        Array of wavenumber bins (shape: [n_frequencies]).
-    labels_recon : list of str
-        Labels for each PSD in psd_recon (optional).
-    labels_compr : list of str
-        Labels for each PSD in psd_compr (optional).
-    split_rank : cutoff rank for curves in left frame
-    """
-    # Color map and LaTeX properties
-    import ghibli as gh
-    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "sans-serif",
-        "font.sans-serif": "Helvetica",
-    })
-
-    # Sanity check for input consistency
-    assert psd_recon.shape == psd_compr.shape, "psd_recon and psd_compr must have the same shape"
-    assert psd_recon.shape[1] == len(k_bins), "k_bins length must match the number of frequencies"
-    n_psds = psd_recon.shape[0]
-
-    if split_rank:
-        split_idx = len([i for i in rank_list if i < split_rank])
-    else:
-        split_idx = n_psds // 2  # Index to split the data for two panels
-
-    # Create a figure with two subplots (panels)
-    fig, axs = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
-
-    # Define function to use for insets in the plots
-    def add_inset(ax, psd_recon, psd_compr, psd_ground_truth, k_bins, start_idx, end_idx, color_list, ymin):
-        """
-        Adds a zoomed-in inset to the given subplot.
-        """
-        inset = inset_axes(ax, width="45%", height="52%", loc='lower left',
-                           bbox_to_anchor=(0.1, 0.1, 1, 1), bbox_transform=ax.transAxes)
-        next(ax._get_lines.prop_cycler)['color']
-        for i in range(start_idx, end_idx):
-            print(start_idx, end_idx)
-            print(i-start_idx, len(color_list))
-            color = color_list[i-start_idx]#next(ax._get_lines.prop_cycler)['color']
-            inset.plot(k_bins[:2], psd_recon[i, :2], linestyle='-', linewidth=1.5, color=color)
-            inset.plot(k_bins[:2], psd_compr[i, :2], linestyle='--', marker='*', linewidth=1.5, color=color)
-        inset.plot(k_bins[:2], psd_ground_truth[:2], linestyle='-', linewidth=2, color='black')
-        inset.set_xlim(k_bins[0], k_bins[1])
-        inset.set_ylim(ymin, 1)
-        inset.set_xscale('log')
-        inset.set_yscale('log')
-        inset.tick_params(axis='both', which='both', labelsize=12)
-        inset.grid(True, which="both", linestyle="--", linewidth=0.3)
-
-    # Panel 1: First half of PSDs
-    next(axs[0]._get_lines.prop_cycler)['color'] # Skip first color
-    color_list = []
-    axs[0].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
-    for i in range(split_idx):
-        color = next(axs[0]._get_lines.prop_cycler)['color']
-        color_list.append(color)
-        label_recon = 'r=' + str(rank_list[i]) +", recons"
-        label_compr = 'r=' + str(rank_list[i]) +", compr"
-        axs[0].loglog(k_bins, psd_recon[i, :], label=label_recon, linestyle='-', linewidth=1.5, color=color)
-        axs[0].loglog(k_bins, psd_compr[i, :], label=label_compr, linestyle='--', marker='*',linewidth=1.5, color=color)
-
-
-    axs[0].set_ylim(1e-3, 1.01)
-    axs[0].set_xlim(k_bins[0], 11)
-    axs[0].set_xlabel("Dimensionless Wavenumber $kL$", fontsize=15)
-    axs[0].set_ylabel("Normalized Power Spectral Density", fontsize=15)
-    axs[0].legend(fontsize=14, loc='upper right')
-    axs[0].grid(True, which="both", linestyle="--", linewidth=0.3)
-    axs[0].tick_params(axis='both', which='both', labelsize=13)
-        
-
-    # Add inset to the first panel
-    add_inset(axs[0], psd_recon, psd_compr, psd_ground_truth, k_bins, 0, split_idx, color_list, ymin=6e-1)
-
-    # Panel 2: Second half of PSDs
-    next(axs[1]._get_lines.prop_cycler)['color'] # Skip first color
-    color_list = []
-    
-    axs[1].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
-    for i in range(split_idx, n_psds):
-        color = next(axs[1]._get_lines.prop_cycler)['color']
-        color_list.append(color)
-        label_recon = 'r=' + str(rank_list[i]) +", recons"
-        label_compr = 'r=' + str(rank_list[i]) +", compr"
-        axs[1].loglog(k_bins, psd_recon[i, :], label=label_recon,linestyle='-', linewidth=1.5, color=color)
-        axs[1].loglog(k_bins, psd_compr[i, :], label=label_compr,linestyle='--', marker='*', linewidth=1.5, color=color)
-
-    
-    axs[1].set_ylim(1e-3, 1.01)
-    axs[1].set_xlim(k_bins[0], 11)
-    axs[1].set_xlabel("Dimensionless Wavenumber $kL$", fontsize=15)
-    axs[1].set_ylabel("Normalized Power Spectral Density", fontsize=15)
-    axs[1].legend(fontsize=14, loc='upper right')
-    axs[1].grid(True, which="both", linestyle="--", linewidth=0.3)
-    axs[1].tick_params(axis='both', which='both', labelsize=13)
-    # Add inset to the second panel
-    add_inset(axs[1], psd_recon, psd_compr, psd_ground_truth, k_bins, split_idx, n_psds, color_list, ymin=6e-1)
-
-            
-    # Save and display the plot
-    plt.savefig("psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
-    plt.show()
-
-
-
-#DONE
+'''Plotter for Fig 9'''
 def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None):
     """
     Build the “four-case” figure that compares depth-dependent SHRED
@@ -735,7 +965,7 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm)
 
 
-
+'''Helper functions for figure 9'''
 #DONE
 def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
@@ -765,11 +995,11 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
 
     #make z_label:
     if z_norm=='taylor':
-        z_label='$\overline{z}/L_{\lambda}$'
+        z_label='$z/L_{\lambda}$'
     elif z_norm == 'int':
-        z_label='$\overline{z}/L_{\infty}$'
+        z_label='$z/L_{\infty}$'
     elif z_norm=='mixed':
-        z_label='$\overline{z}/(L_{\lambda} L_{\infty})^{1/2}$'  
+        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
     else:
         z_label = None
       
@@ -920,6 +1150,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     return fig, gs
 
 
+'''Plotter for Fig. 10'''
 #DONE
 def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimental_ensembles, metric='rms'):
     """
@@ -1026,7 +1257,7 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
         ax4.plot(test_snaps4, RMS_recons_E2, linestyle='--', color='blue')
     
     ax1.plot(test_snaps1[200:600], variable_S1[200:600], linestyle='-', color='k')
-    ax1.set_ylabel(ylabel, fontsize=15)
+    ax1.set_ylabel(ylabel, fontsize=18)
     ax1.grid()
 
 
@@ -1036,13 +1267,13 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
 
 
     ax3.plot(test_snaps3, variable_E1, linestyle='-', color='k')
-    ax3.set_ylabel(ylabel, fontsize=15)
+    ax3.set_ylabel(ylabel, fontsize=18)
     ax3.grid()
-    ax3.set_xlabel('Test snapshot', fontsize=15)
+    ax3.set_xlabel('Test snapshot', fontsize=16)
 
     ax4.plot(test_snaps4, variable_E2, linestyle='-', color='k')
     ax4.grid()
-    ax4.set_xlabel('Test snapshot', fontsize=15)
+    ax4.set_xlabel('Test snapshot', fontsize=16)
     ax4.tick_params(left=False, labelleft=False)    
 
     for ax in [ax1, ax2, ax3, ax4]:
@@ -1061,581 +1292,374 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
+
+'''Plotter for Fig. 11'''
 #DONE
-def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
+def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
     """
-    Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
-    four flow cases – two DNS (S1/S2) and two experimental (E1/E2) – and
-    compare ground truth against SHRED reconstructions.
+    Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
+    and SHRED-reconstructed velocity fields for all cases
 
-    A 4 × 3 panel figure is created:
-
-    ==========================  =========================================
-    Row                          Cases plotted (left → right)
-    --------------------------  -----------------------------------------
-    0 (top)                     S1 (RE1000) snapshots *i = 0,1,2*
-    1                            S2 (RE2500) snapshots *i = 0,1,2*
-    2                           E1 (P25)    snapshots *i = 0,1,2*
-    3 (bottom)                  E2 (P50)    snapshots *i = 0,1,2*
-    ==========================  =========================================
-
-    Each subplot shows:
-
-    * Solid line – ground-truth RMS profile at snapshot *i*
-    * Dashed line – SHRED-reconstructed RMS profile
-    * Depth axis optionally normalised (``z_norm``)
-
-    The final figure is saved both as PNG and PDF.
-
+    ----------
     Parameters
     ----------
-    experimental_ens : int
-        Experimental ensemble index used to load SVD/RMS data.
-    SHRED_ens_DNS : int
-        SHRED ensemble seed for DNS cases.
-    SHRED_ens_exp : int
-        SHRED ensemble seed for experimental cases.
-    snap_indices_DNS : list[int]
-        Three snapshot indices to plot for S1 and S2.
-    snap_indices_exp : list[int]
-        Three snapshot indices to plot for E1 and E2.
-    ranks : tuple[int, int, int, int]
-        SVD truncation ranks (unused here but reserved for future use).
-    num_sensors : int
-        Number of surface sensors (used only in filename bookkeeping).
-    colors : tuple[str, str, str, str]
-        Line colours for S1, S2, E1, E2 (in that order).
-    labels : tuple[tuple[str, str], ...]
-        Label pairs ``(ground_truth_label, recon_label)`` per snapshot.
-    z_norm : {"int", "taylor", "mixed", None}, default "int"
-        Normalisation for the vertical axis:
-        * ``"int"``  →  integral length scale  
-        * ``"taylor"`` → Taylor microscale  
-        * ``"mixed"``  →  √(Lλ L∞)  
-        * ``None``     →  raw grid index
+    vel_planes
+        Four-element list giving the integer plane IDs to use for
+        S1, S2, E1, E2 **in that order**.
+        For the experiments, 1→'H395', 2→'H390', … 5→'H300'.
+    SHRED_ensembles
+        List ``[ens_S1, ens_S2, ens_E1, ens_E2]`` selecting which SHRED run
+        (seed) to load for each case.
+    experimental_ensembles
+        Two-element list ``[ens_P25, ens_P50]`` selecting which experimental
+        realisation (run) to plot for E1 and E2.
+    r_vals
+        Rank used in the reduced SVD for each case
+        ``[r_S1, r_S2, r_E1, r_E2]``.
+    num_sensors
+        Number of surface sensors used in every SHRED run
+        (important for file naming).
 
     Returns
     -------
     None
-        Produces a Matplotlib figure and writes files:
+        The function is for plotting only, with a 4 panel 
+        plot saved as a pdf.
 
-        * ``.../Results/DNS_cases_rms_instantaneous.png``
-        * ``.../Results/DNS_cases_rms_instantaneous.pdf``
-
-    Notes
-    -----
-    * Requires pre-computed `.mat` files created by
-      ``processdata.open_instantaneous_rms_profile(_exp)``.
     """
-
-    rms_gt_S1, rms_recons_S1 = processdata.open_instantaneous_rms_profile('RE1000', SHRED_ens_DNS)
-    rms_gt_S2, rms_recons_S2 = processdata.open_instantaneous_rms_profile('RE2500', SHRED_ens_DNS)
-    rms_gt_E1, rms_recons_E1 = processdata.open_instantaneous_rms_profile_exp('P25', experimental_ens, SHRED_ens_exp)
-    rms_gt_E2, rms_recons_E2 = processdata.open_instantaneous_rms_profile_exp('P50', experimental_ens, SHRED_ens_exp)
-    
-    #choose snap indices
-    rms_gt_S1 = rms_gt_S1[:, snap_indices_DNS]
-    rms_recons_S1 = rms_recons_S1[:,snap_indices_DNS]
-
-    rms_gt_S2= rms_gt_S2[:,snap_indices_DNS]
-    rms_recons_S2 = rms_recons_S2[:,snap_indices_DNS]
-
-    rms_gt_E1 = rms_gt_E1[:, snap_indices_exp]
-    rms_recons_E1 = rms_recons_E1[:,snap_indices_exp]
-
-    rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
-    rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
-    
-    #plot
-    z_S1 = utilities.get_zz_DNS('RE1000')
-    z_S2 = utilities.get_zz_DNS('RE2500')
-    z_S1 = utilities.get_normalized_z(z_S1, z_norm, 'RE1000')
-    z_S2 = utilities.get_normalized_z(z_S2, z_norm, 'RE2500')
-
-    z_exp = utilities.get_zz_exp()
-    z_E1 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P25')
-    z_E2 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P50')
-
-    
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "sans-serif",
-    })
-    
-    fig = plt.figure(figsize=(14, 15))
-    gs = GridSpec(4, 3, figure=fig, hspace=0.2, wspace=0.1)
     
 
+    #plane name library for experiments
+    planes = ['H395', 'H390', 'H375', 'H350', 'H300']
 
-    labels1=['Ground Truth, Re=1000', 'Recons, Re=1000']
-    #make z_label:
-    if z_norm=='taylor':
-        z_label='$\overline{z}/L_{\lambda}$'
-    elif z_norm == 'int':
-        z_label='$\overline{z}/L_{\infty}$'
-    elif z_norm=='mixed':
-        z_label='$\overline{z}/(L_{\lambda} L_{\infty})^{1/2}$'  
-    else:
-        z_label = None
-    ax1 = fig.add_subplot(gs[0, 0])
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax3 = fig.add_subplot(gs[0, 2])
-
-    ax4 = fig.add_subplot(gs[1, 0])
-    ax5= fig.add_subplot(gs[1, 1])
-    ax6 = fig.add_subplot(gs[1, 2])
-
-    ax7 = fig.add_subplot(gs[2, 0])
-    ax8= fig.add_subplot(gs[2, 1])
-    ax9 = fig.add_subplot(gs[2, 2])
-
-    ax10 = fig.add_subplot(gs[3, 0])
-    ax11= fig.add_subplot(gs[3, 1])
-    ax12 = fig.add_subplot(gs[3, 2])
-    
-    axes = [[ax1, ax2, ax3], [ax4, ax5, ax6], [ax7, ax8, ax9], [ax10, ax11, ax12]]
-
-    for i in range(len(snap_indices_DNS)):
-        #Row 1: RMS for u and w
-        print(i)
-        ax_S1 = axes[0][i]
-        ax_S1.plot(rms_recons_S1[:,i], z_S1, linestyle='--', color=colors[0], label=labels[i][1])
-        ax_S1.plot(rms_gt_S1[:,i], z_S1, linestyle='-', color=colors[0], label=labels[i][0])
-
-        ax_S2 = axes[1][i]
-        ax_S2.plot(rms_recons_S2[:,i], z_S2, linestyle='--', color=colors[1], label=labels[i][1])
-        ax_S2.plot(rms_gt_S2[:,i], z_S2, linestyle='-', color=colors[1], label=labels[i][0])
-
-        ax_E1 = axes[2][i]
-        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
-        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
-
-        ax_E2 = axes[3][i]
-        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
-        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
+    ##case E1 (P25) --------------------
         
-        ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=14)
-        ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=14)
-        ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=14)
-        ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=14)
+    plane = planes[vel_planes[2]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P25', plane)
+    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
+    #get SVDs correctly
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[0], 'P25', r_vals[2], forecast=False, DNS=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25', r_vals[2], 
+                                                                                                            SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
+                                                                                                            surface=False,no_input_u_fluc=True)
+    gt_fft_E1, recon_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E1=np.amax(gt_fft_E1)
+    gt_psd_E1 = gt_fft_E1/spectral_max_E1
+    recon_psd_E1 = recon_fft_E1/spectral_max_E1
+    svd_psd_E1 = svd_fft_E1/spectral_max_E1
+    integral_length_scale=0.051
+    k_vals_E1 = integral_length_scale*k_vals_E1
+    k_cutoff_E1 = k_vals_E1[7]
+    print("cutoff normalized wavenumber k for case E1: ", k_cutoff_E1)
+    
 
-        ax_S1.set_xlim((0.06,0.21))
-        ax_S2.set_xlim((0.055,0.19))
-        ax_E1.set_xlim((0.65,2.3))
-        ax_E2.set_xlim((0.3,2.8))
-        if i>0:
-            ax_S1.set_yticklabels([])
-            ax_S2.set_yticklabels([])
-            ax_E1.set_yticklabels([])
-            ax_E2.set_yticklabels([])
-        ax_S1.grid()
-        ax_S2.grid()
-        ax_E1.grid()
-        ax_E2.grid()
-        if i==0:
-            ax_S1.legend(fontsize=13)
-            ax_S2.legend(fontsize=13)
-            ax_E1.legend(fontsize=13)
-            ax_E2.legend(fontsize=13)
+    #case E2 (P50) ------------------------------
 
-    ax1.set_ylabel(z_label, fontsize=16)
-    ax4.set_ylabel(z_label, fontsize=16)
-    ax7.set_ylabel(z_label, fontsize=16)
-    ax10.set_ylabel(z_label, fontsize=16)
-    for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12]:
+    plane = planes[vel_planes[3]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P50', plane)
+    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
+    #get SVDs correctly
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[1], 'P50', r_vals[3], forecast=False, DNS=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50', r_vals[3], 
+                                                                                                            SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
+                                                                                                            surface=False,no_input_u_fluc=True)
+    gt_fft_E2, recon_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E2=np.amax(gt_fft_E2)
+    gt_psd_E2 = gt_fft_E2/spectral_max_E2
+    recon_psd_E2 = recon_fft_E2/spectral_max_E2
+    svd_psd_E2 = svd_fft_E2/spectral_max_E2
+    integral_length_scale=0.068
+    k_vals_E2 = integral_length_scale*k_vals_E2
+    k_cutoff_E2 = k_vals_E2[7] 
+    print("cutoff normalized wavenumber k for case E2: ", k_cutoff_E2)
+    
+    #DNS case S1 (RE1000) ----------------------------------
+
+    stack_planes=[vel_planes[0]] 
+    plane = vel_planes[0]
+    integral_length_scale=utilities.get_integral_length_scale('RE1000')
+    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
+  
+    #then iterate SHRED ensembles
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE1000', plane, 1, None, V_tot_recons, test_indices, r_vals[0], 
+                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
+                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
+    gt_fft_S1, recon_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE1000')
+    gt_fft, svd_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE1000')
+    spectral_max_S1=np.amax(gt_fft_S1)
+    gt_psd_S1 = gt_fft_S1/spectral_max_S1
+    recon_psd_S1 = recon_fft_S1/spectral_max_S1
+    svd_psd_S1 = svd_fft_S1/spectral_max_S1
+    k_vals_S1 = integral_length_scale*k_vals_S1
+    k_cutoff_S1 = k_vals_S1[13]
+    print("cutoff normalized wavenumber k for case S1: ", k_cutoff_S1)
+    
+    #DNS case S2 (RE2500) -----------------------------------
+    
+    stack_planes=[vel_planes[1]] 
+    plane = vel_planes[1]
+    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
+    
+    #then iterate SHRED ensembles
+
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE2500', r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
+ 
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE2500', plane, 1, None, V_tot_recons, test_indices, r_vals[1], 
+                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
+                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
+    integral_length_scale=utilities.get_integral_length_scale('RE2500')
+    gt_fft_S2, recon_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE2500')
+    gt_fft, svd_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE2500')
+    spectral_max_S2=np.amax(gt_fft_S2)
+    gt_psd_S2 = gt_fft_S2/spectral_max_S2
+    recon_psd_S2 = recon_fft_S2/spectral_max_S2
+    svd_psd_S2 = svd_fft_S2/spectral_max_S2
+    k_vals_S2 = integral_length_scale*k_vals_S2
+    k_cutoff_S2 = k_vals_S2[11]
+
+    print("cutoff normalized wavenumber k for case S2: ", k_cutoff_S2)
+
+    #Plot figures
+    fig = plt.figure(figsize=(14, 10))
+    gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
+    
+
+    # Row 1: RMS for u and w
+    ax1 = fig.add_subplot(gs[0, 0])
+    #ax1.plot(test_snaps1, mse_snapshots_RE1000, label='MSE S1')
+    #ax1.plot(test_snaps1, psd_snapshots_RE1000, label='PSD error S1')
+    #ax1.plot(test_snaps1, ssim_snapshots_RE1000, label='SSIM S1')
+    
+    #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
+    #ax2.tick_params(axis='y', labelcolor='r')
+    ax1.loglog(k_vals_S1, gt_psd_S1, linestyle='-', color='k', label='Ground truth')
+    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='SHRED recons')
+    ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
+    ax1.set_ylabel('PSD', fontsize=15)
+    ax1.grid()
+    ax1.legend(fontsize=13)
+    ax1.set_ylim(1e-3, 3)
+    ax1.set_xlim(k_vals_S1[0], 11)
+    ax1.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.loglog(k_vals_S2, gt_psd_S2, linestyle='-', color='k', label='Ground truth')
+    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='SHRED recons')
+    ax2.plot([k_cutoff_S2, k_cutoff_S2], [1e-3,3], linestyle='-', color='darkviolet')
+    #ax2.set_ylabel('PSD', fontsize=15)
+    ax2.grid()
+    ax2.legend(fontsize=13)
+    ax2.set_ylim(1e-3, 3)
+    ax2.set_xlim(k_vals_S2[0], 11)
+    ax2.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+
+
+    ax3 = fig.add_subplot(gs[1,0])
+    ax3.loglog(k_vals_E1, gt_psd_E1, linestyle='-', color='k', label='Ground truth')
+    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='SHRED recons')
+    ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
+    ax3.set_ylabel('PSD', fontsize=15)
+    ax3.grid()
+    ax3.legend(fontsize=13)
+    ax3.set_ylim(1e-3, 3)
+    ax3.set_xlim(k_vals_E1[0], 11)
+    ax3.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    ax4= fig.add_subplot(gs[1,1])
+    ax4.loglog(k_vals_E2, gt_psd_E2, linestyle='-', color='k', label='Ground truth')
+    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='SHRED recons')
+    ax4.plot([k_cutoff_E2, k_cutoff_E2], [1e-3,3], linestyle='-', color='darkviolet')
+    #ax4.set_ylabel('PSD', fontsize=15)
+    ax4.grid()
+    ax4.legend(fontsize=13)
+    ax4.set_ylim(1e-3, 3)
+    ax4.set_xlim(k_vals_E2[0], 11)
+    ax4.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    for ax in [ax1, ax2, ax3, ax4]:
         ax.tick_params(axis='x', which='major', labelsize=13)
-        if ax==ax1 or ax==ax4 or ax==ax7 or ax==ax10:
-            ax.tick_params(axis='y', which='major', labelsize=13)
-    #fig.tight_layout()
+        ax.tick_params(axis='y', which='major', labelsize=13)
+
+    ax2.tick_params(left=False, labelleft=False)
+    ax4.tick_params(left=False, labelleft=False)
+
+    fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
-    filename = adr_loc_3 + "rms_instantaneous"
+    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\psd_compare" 
+    filename = adr_loc_3
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
 
-#DONE
-def plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_snap_index, lags=52, forecast=False, add_surface=False, full_planes=True, DNS_case='S2'):
-    """
-    Create side-by-side image comparisons of ground truth, SVD truncation,
-    and SHRED reconstruction for selected DNS planes (and optionally the
-    free surface), then save the figures to disk. If more than 2 velocity planes, 
-    the comparisons are plotted one by one. Else, we combine them in one figure.
+'''Plotter for Fig. 12'''
+def plot_psd_rank_comparison_with_SHRED(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
+    '''produces Fig 12 in Appendix A
+    
+        plots PSD spectra for ground truth, as well as SVD compressed fields
+        and SHRED reconstructed fields, for a range of rank values.'''
+    case = utilities.case_name_converter(case)
 
-    Parameters
+    psd_ground_truth, psd_compr, psd_recon, k_vals = processdata.calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens)
+    
+    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, labels_recon=None, labels_compr=None, split_rank=split_rank, rank_list=r_vals)
+
+
+
+'''Helper-function for Fig. 12'''
+def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_recon=None, labels_compr=None, split_rank=0, rank_list=None):
+    """
+    Plots PSD comparisons for reconstructed and compressed data along with ground truth.
+
+    Parameters:
     ----------
-    r_new : int
-        Truncation rank used for both SVD and SHRED reconstruction.
-    SHRED_ens : int
-        SHRED ensemble index (seed) used when loading saved `.mat` files.
-    vel_planes : list[int]
-        DNS velocity-plane indices to visualise.
-    num_sensors : int
-        Number of surface sensors present in the SHRED input (used only
-        for filename construction).
-    test_snap_index : int
-        Time index of the snapshot to display from the test set.
-    lags : int, default 52
-        LSTM sequence length used when SHRED was trained (needed for
-        correct indexing in the test set).
-    forecast : bool, default False
-        If *True*, load forecast-mode SHRED results; otherwise reconstruction.
-    add_surface : bool, default False
-        If *True*, plot an additional figure for the surface elevation.
-    full_planes : bool, default True
-        If *True*, SHRED was trained on **all** planes; otherwise only the
-        subset in ``vel_planes`` (affects plane indexing).
-    DNS_case : {"S1", "S2"}, default "S2"
-        DNS dataset identifier.
-
-    Returns
-    -------
-    None
-        Generates and saves PNG figures; no data are returned.
-
-    Notes
-    -----
-    * Assumes SHRED outputs are stored in `.mat` files located in
-      `adr_loc_3` with naming convention used in
-      :pyfunc:`utilities.open_SHRED`.
-    * Figure filenames follow
-      ``compare_recon_<DNS_case>_plane<plane>_rank<r>_DNS_ens<SHRED_ens>.png``..
+    psd_recon : numpy.ndarray
+        Array of PSDs from reconstructed data (shape: [n_psds, n_frequencies]).
+    psd_compr : numpy.ndarray
+        Array of PSDs from compressed data (shape: [n_psds, n_frequencies]).
+    psd_ground_truth : numpy.ndarray
+        Array of the ground truth PSD (shape: [n_frequencies]).
+    k_bins : numpy.ndarray
+        Array of wavenumber bins (shape: [n_frequencies]).
+    labels_recon : list of str
+        Labels for each PSD in psd_recon (optional).
+    labels_compr : list of str
+        Labels for each PSD in psd_compr (optional).
+    split_rank : cutoff rank for curves in left frame
     """
-    
-    DNS_case = utilities.case_name_converter(DNS_case)
+    # Color map and LaTeX properties
+    import ghibli as gh
+    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.sans-serif": "Helvetica",
+    })
 
-    #set location folder for plots
-    #TODO: change address
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS"
-    
-    if DNS_case=='RE2500':
-        tot_num_planes=76
+    # Sanity check for input consistency
+    assert psd_recon.shape == psd_compr.shape, "psd_recon and psd_compr must have the same shape"
+    assert psd_recon.shape[1] == len(k_bins), "k_bins length must match the number of frequencies"
+    n_psds = psd_recon.shape[0]
+
+    if split_rank:
+        split_idx = len([i for i in rank_list if i < split_rank])
     else:
-        tot_num_planes=57
+        split_idx = n_psds // 2  # Index to split the data for two panels
 
-    #create mesh
-    XX,YY = utilities.get_mesh_DNS(DNS_case)
+    # Create a figure with two subplots (panels)
+    fig, axs = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
 
-    #get SHRED V matrices
-    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, DNS_case, r_new, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast)
+    # Define function to use for insets in the plots
+    def add_inset(ax, psd_recon, psd_compr, psd_ground_truth, k_bins, start_idx, end_idx, color_list, ymin):
+        """
+        Adds a zoomed-in inset to the given subplot.
+        """
+        inset = inset_axes(ax, width="45%", height="52%", loc='lower left',
+                           bbox_to_anchor=(0.1, 0.1, 1, 1), bbox_transform=ax.transAxes)
+        next(ax._get_lines.prop_cycler)['color']
+        for i in range(start_idx, end_idx):
+            #print(start_idx, end_idx)
+            #print(i-start_idx, len(color_list))
+            color = color_list[i-start_idx]#next(ax._get_lines.prop_cycler)['color']
+            inset_x_axis = [k_bins[0]-0.01*k_bins[0], k_bins[1]+0.1*k_bins[1]]
+            inset.plot(k_bins[:3], psd_recon[i, :3], linestyle='-', linewidth=1.5, color=color)
+            inset.plot(k_bins[:3], psd_compr[i, :3], linestyle='--', marker='*', linewidth=1.5, color=color)
+        inset.plot(k_bins[:3], psd_ground_truth[:3], linestyle='-', linewidth=2, color='black')
+        inset.set_xlim(inset_x_axis[0], inset_x_axis[1])
+        inset.set_ylim(ymin, 1)
+        inset.set_xscale('log')
+        inset.set_yscale('log')
+        inset.tick_params(axis='both', which='both', labelsize=12)
+        inset.grid(True, which="both", linestyle="--", linewidth=0.3)
 
-    #get surface elevation
-    all_rows = []
-    
-    if add_surface:
-        plane=0 #correct plane number for surface elevation 
-        plane_index=0
-        surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, np.zeros(1), V_test_recons, V_test_indices, r_new,
-                                                                                                num_sensors, lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
-        del u_fluc2
+    # Panel 1: First half of PSDs
+    next(axs[0]._get_lines.prop_cycler)['color'] # Skip first color
+    color_list = []
+    axs[0].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
+    for i in range(split_idx):
+        color = next(axs[0]._get_lines.prop_cycler)['color']
+        color_list.append(color)
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
+        axs[0].loglog(k_bins, psd_recon[i, :], label=label_recon, linestyle='-', linewidth=1.5, color=color)
+        axs[0].loglog(k_bins, psd_compr[i, :], label=label_compr, linestyle='--', marker='*',linewidth=1.5, color=color)
 
-        #extract specific snapshot
-        surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
-        surf_svd = surf_svd_test[:, :, test_snap_index]
-        surf_recons = surf_recons_test[:, :, test_snap_index]
-        row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
-        all_rows.append(row1)
+
+    axs[0].set_ylim(1e-3, 1.01)
+    axs[0].set_xlim(k_bins[0], 11)
+    axs[0].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
+    axs[0].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[0].legend(fontsize=14, loc='upper right')
+    axs[0].grid(True, which="both", linestyle="--", linewidth=0.3)
+    axs[0].tick_params(axis='both', which='both', labelsize=13)
         
-        if len(vel_planes) >= 3:
-            spacing = 0.1
-            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-            for j, snapshot in enumerate(row1):
-                ax = axs[j]
-                if j==0:
-                    min_val = np.min(snapshot)
-                    max_val = np.max(snapshot)
+
+    # Add inset to the first panel
+    add_inset(axs[0], psd_recon, psd_compr, psd_ground_truth, k_bins, 0, split_idx, color_list, ymin=6e-1)
+
+    # Panel 2: Second half of PSDs
+    next(axs[1]._get_lines.prop_cycler)['color'] # Skip first color
+    color_list = []
+    
+    axs[1].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
+    for i in range(split_idx, n_psds):
+        color = next(axs[1]._get_lines.prop_cycler)['color']
+        color_list.append(color)
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
+        axs[1].loglog(k_bins, psd_recon[i, :], label=label_recon,linestyle='-', linewidth=1.5, color=color)
+        axs[1].loglog(k_bins, psd_compr[i, :], label=label_compr,linestyle='--', marker='*', linewidth=1.5, color=color)
+
+    
+    axs[1].set_ylim(1e-3, 1.01)
+    axs[1].set_xlim(k_bins[0], 11)
+    axs[1].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
+    axs[1].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[1].legend(fontsize=14, loc='upper right')
+    axs[1].grid(True, which="both", linestyle="--", linewidth=0.3)
+    axs[1].tick_params(axis='both', which='both', labelsize=15)
+    # Add inset to the second panel
+    add_inset(axs[1], psd_recon, psd_compr, psd_ground_truth, k_bins, split_idx, n_psds, color_list, ymin=6e-1)
+
             
-                ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=min_val, vmax=max_val)
-                ax.axis('off')
-
-            filename = adr_loc_3 + "compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) +".png"
-            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
-        
-            plt.show()
-    
-    #iterate and plot velocity planes
-    for i in range(len(vel_planes)):
-        print("plane ", vel_planes[i])
-        plane = vel_planes[i]
-        if full_planes and len(vel_planes) < tot_num_planes:
-            plane_index = vel_planes[i]
-        else:
-            plane_index = i+1 #shift with 1 to compensate for surface elevation when loading V matrices
-        #construct raw fields
-        u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
-        
-        print("getting test images")
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_test_recons, V_test_indices, r_new,
-                                                                                            num_sensors, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
-        del u_fluc2
-        print("test images extracted")
-        #construct SVD fields
-        u_fluc_test = u_fluc_test[:,:,test_snap_index]
-        u_svd = u_svd_test[:, :, test_snap_index]
-
-        #construct SHRED reconstruction fields
-        
-        u_recons = u_recons_test[:, :, test_snap_index]
-
-        #all_rows_1 = []
-        row = [u_fluc_test, u_svd, u_recons]  # Second row
-        #all_rows_1.append(row)
-
-        if len(vel_planes) < 3:
-            all_rows.append(row)
-
-        # Plot each snapshot in the grid
-        if len(vel_planes) >= 3:
-        
-            spacing = 0.1
-            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-        
-            for j, snapshot in enumerate(row):
-                #colour_levels = np.linspace(-u_scale,u_scale, 500)
-                ax = axs[j]
-                if j==0:
-                    min_val = np.min(snapshot)
-                    max_val = np.max(snapshot)
-                ax.imshow(snapshot,  cmap='RdBu_r', interpolation='bilinear', vmin=min_val, vmax=max_val)
-                ax.axis('off')
-
-            filename = adr_loc_3 + "compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) +".png"
-            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
-        
-            plt.show()
-            plt.close()
-
-
-
-    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
-    #plot for paper
-    if len(vel_planes) < 3:
-        spacing = 0.1
-        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
-        ax1 = axs[0,0]
-        ax2 = axs[0,1]
-        ax3 = axs[0,2]
-        ax1.set_title("Ground truth")
-        ax2.set_title("Compressed")
-        ax3.set_title("Reconstruction")
-        for k, row in enumerate(all_rows):
-            for j, snapshot in enumerate(row):
-                if j==0:
-                    min_val = np.min(snapshot)
-                    max_val = np.max(snapshot)
-
-                ax = axs[k,j]
-             
-                ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
-                
-                ax.axis('off')
-
+    # Save and display the plot
+    plt.savefig("psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
     plt.show()
-    filename = adr_loc_3 + "compare_recon_"+DNS_case+"_rank"+str(r_new)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
-    fig.savefig(adr_loc_3 + "compare_recon_DNS_"+DNS_case+"_rank"+str(r_new)+ "_DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) + ".pdf", format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
-    plt.close()
 
 
-#DONE
-def plot_SHRED_comparison_exp(r_new, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
-                              num_sensors=3, lags=52, forecast=False, add_surface=False):
-    """
-    Plot ground-truth, rank-r SVD, and SHRED-reconstructed snapshots of
-    T-tank experimental data for the chosen velocity planes (and
-    optionally the surface), then save the figures.
+"""-------------------------------------------------------------------------------------------------------------------------------------------------"""
 
+'''Plotters for video/gif visualization'''
 
-    Parameters
-    ----------
-    r_new : int
-        SVD truncation rank used for SHRED and comparison plots.
-    exp_case : {"E1", "E2"}
-        Experimental case identifier (converted internally to "E1"/"E2").
-    experimental_ens : int
-        Experimental ensemble index to read SVD data from.
-    SHRED_ens : int
-        SHRED ensemble seed used when saving reconstructions.
-    plane_list : list[int]
-        Indices (1-based: 1 = H395, 2 = H390, …) of velocity planes to plot.
-    test_snap_index : int
-        Snapshot index within the test set to visualise.
-    u_fluc, surf_fluc : ndarray or None
-        Optional pre-loaded velocity / surface time series.  If *None*,
-        data are loaded internally.
-    num_sensors : int, default 3
-        Number of surface sensors used in SHRED (filename bookkeeping).
-    lags : int, default 52
-        LSTM sequence length used in training; required for correct
-        indexing when extracting test snapshots.
-    forecast : bool, default False
-        If *True*, load forecast-mode SHRED reconstructions.
-    add_surface : bool, default False
-        Plot an additional figure for surface elevation.
-
-    Returns
-    -------
-    None
-
-    Notes
-    -----
-    * Assumes SHRED outputs are stored in `.mat` files and accessed via
-      :pyfunc:`utilities.open_SHRED`.
-    * Hard-coded output path `adr_loc_3`; adjust for other environments.
-    """
-    #TODO: Add other velocity fields to the plotting function as I get them
-    #set location folder for plots
-    
-    exp_case = utilities.case_name_converter(exp_case)
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\Tee_tank"
-    
-    
-    #iterate test snaps:
-    #filenames_snaps = []
-  
-    
-    for i in range(len(plane_list)):
-        
-        planes = ['H395', 'H390', 'H375', 'H350', 'H300']
-        plane = planes[plane_list[i]-1]
-        print("plane: ", plane)
-        X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(exp_case, plane)
-        #plane_index = i+1
-        #construct raw fields
-
-        #get SHRED V matrices
-        test_recons, test_ground_truth, test_indices = utilities.open_SHRED(experimental_ens, exp_case, r_new, num_sensors, 
-                                                                            SHRED_ens, plane_list, DNS=False, plane=plane, full_planes=True, forecast=forecast)
-
-        #get surface elevation
-        all_rows = []
-        if add_surface:
-            #plane=0
-            #plane_index=0
-            surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
-                                                                                                            X_surf, X_vel, experimental_ens, exp_case, r_new, 
-                                                                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True,
-                                                                                                              lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
-            del u_fluc2
-            surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
-            surf_svd = surf_svd_test[:, :, test_snap_index]
-            surf_recons = surf_recons_test[:, :, test_snap_index]
-            row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
-            all_rows.append(row1)
-            if len(plane_list) >= 3:
-                spacing = 0.1
-                fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-                for j, snapshot in enumerate(row1):
-                    if j==0:
-                        min_val = np.min(snapshot)
-                        max_val = np.max(snapshot)
-              
-                    ax = axs[j]
-                    ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
-                    ax.axis('off')
-
-                filename = adr_loc_3 + "Teetank_compare_recon_SURF_ELEV_rank"+str(r_new)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
-                plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
-        
-                plt.show()
-    
-
-        print("getting test images")
-        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, r_new, 
-                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
-        del u_fluc2
-        print("test images extracted")
-        #construct SVD fields
-        u_fluc_test = u_fluc_test[:,:,test_snap_index]
-        u_svd = u_svd_test[:, :, test_snap_index]
-
-        #construct SHRED reconstruction fields
-        
-        u_recons = u_recons_test[:, :, test_snap_index]
-
-        #all_rows_1 = []
-        row = [u_fluc_test, u_svd, u_recons]  # Second row
-        #all_rows_1.append(row)
-
-        if len(plane_list) < 3:
-            all_rows.append(row)
-
-        # Plot each snapshot in the grid
-        if len(plane_list) >= 3:
-            spacing = 0.1
-            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-        
-            for j, snapshot in enumerate(row):
-                if j==0:
-                    min_val = np.min(snapshot)
-                    max_val = np.max(snapshot)
-            
-        
-                ax = axs[j]
-                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
-                ax.axis('off')
-
-
-        # Adjust layout and display the plot
-        # plt.tight_layout()
-        #plt.show()
-
-            filename = adr_loc_3 + "Teetank_compare_recon_u_rank"+str(r_new)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
-            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
-        
-            plt.show()
-            plt.close()
-
-
-
-    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
-    #plot for paper
-    if len(plane_list) < 3:
-        spacing = 0.1
-        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
-        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
-        
-        for k, row in enumerate(all_rows):
-            for j, snapshot in enumerate(row):
-                if j==0:
-                    min_val = np.min(snapshot)
-                    max_val = np.max(snapshot)
-
-
-
-                ax = axs[k,j]
-                #contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmaps[k])
-                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
-                ax.axis('off')
-                #ax.axis('square')
-                #my_ticks = np.arange(-0.75,0.75,0.15)
-                #cb = plt.colorbar(ticks=my_ticks)
-                #ax1.tick_params(axis='both', labelsize=16)
-                #cb.set_label(label='u [m/s]', fontsize=16)
-                #fig.colorbar(contour1, ax=ax1, ticks=my_ticks, label="u' [m/s]")
-
-
-                #ax = axs[k, j]
-                #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
-                #ax.axis('off')
-        plt.show()
-        filename = adr_loc_3 + "Teetank_compare_recon_TOTAL_rank"+str(r_new)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)
-        #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
-        fig.savefig(filename + ".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
-      
-
-def loop_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500'):
+def loop_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500'):
     
     indices = np.arange(test_index_start, test_index_end+1)
     
     for i in range(len(indices)):
         test_snap_index = indices[i]
-        plot_SHRED_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors, test_snap_index, surf_scale, u_scale, lags=52, forecast=False, add_surface=add_surface, full_planes=True, DNS_case=DNS_case)
+        plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_snap_index, surf_scale, u_scale, lags=52, forecast=False, add_surface=add_surface, full_planes=True, DNS_case=DNS_case)
 
 
-def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500', gif_name='DNS GIF'):
+def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500', gif_name='DNS GIF'):
 
     indices = np.arange(test_index_start, test_index_end+1)
     filenames = []
@@ -1643,7 +1667,7 @@ def make_GIF_comparison_DNS(r_new, SHRED_ens, vel_planes, num_sensors,test_index
 
     for i in range(len(indices)):
         test_snap_index = indices[i]
-        fname = adr_loc_3 + "DNScompare_recon_DNS_"+DNS_case+"_rank"+str(r_new)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
+        fname = adr_loc_3 + "DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
         filenames.append(fname) 
     utilities.create_GIF(filenames, gif_name)
 
@@ -1816,7 +1840,7 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
     """
     case = utilities.case_name_converter(case)
 
-    mse_list, ssim_list, psnr_list, psd_list =processdata.calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, experimental_ensembles, forecast=False, add_surface=False, full_planes=full_planes, r_analysis=r_analysis)
+    mse_list, ssim_list, psnr_list, psd_list =processdata.calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, experimental_ensembles, forecast=False, r_analysis=r_analysis)
         
     if r_analysis:
         var_vals = r_vals
@@ -1853,7 +1877,7 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
 
 def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, surface=False, GIF_only=True):
     if surface:
-        data = utilities.get_surface(DNS_case)
+        data = utilities.get_surface_DNS(DNS_case)
         color=cmocean.cm.ice
         plane_str = 'surf'
     else:
