@@ -546,7 +546,6 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
     #ONLY RUN SHRED FOR 1 PLANE PLUS SURFACE AT THE SAME TIME!
     
     case = utilities.case_name_converter(case)
-    r=900 #manually set upper rank limit, i.e. length of dataset
 
     
     #exctract full SVD matrices for this plane (velocity plane stacked with surface)
@@ -562,6 +561,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
         for q in range(len(r_vals)):
             r = r_vals[q]
             print("rank: ", r, "\n SHRED ensemble: ", p)
+            
             #reduce SVD matrices (only need V matrix)
             U_tot_u_red, S_tot_u_red, V_tot_red = utilities.reduce_SVD(U_tot_u, S_tot_u, V_tot, levels=2, rank=r, Tee=True, surf=False)
             
@@ -582,7 +582,6 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
             n = (load_X).shape[0] #number of snapshots in time series
             m = (load_X).shape[1] #number of planes (surface + one velocity plane) * number of SVD modes, plus number of sensors
 
-            #creating a mask: grid with zeros expect the sensor points that's assigned with 1
             mask = np.zeros(dimX*dimY)
             for i in range(num_sensors):
                 mask[sensor_locations_ne[i]]=1
@@ -614,18 +613,11 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
                 print("n_train: ", n_train)
                 n_test = n-lags - n_valid - n_train
                 print("n_test: ", n_test)
-                #train_indices = np.arange(0, int(n*0.85))
-                #create a mask that marks the validation snapshots. value=1 for validation, and zero for training
-                #mask = np.ones(n_train + n_valid) 
-                #mask[train_indices] = 0
                 train_indices = np.arange(0, n_train)
                 valid_indices = np.arange(n_train, n_train + n_valid)
                 test_indices = np.arange(n_train + n_valid, n - lags)
 
     
-
-
-
             #scaling the input training data to SHRED
             sc = MinMaxScaler()
             sc = sc.fit(load_X[train_indices]) #computes min/max of training data for later scaling
@@ -655,9 +647,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
             valid_dataset = models.TimeSeriesDataset(valid_data_in, valid_data_out)
             test_dataset = models.TimeSeriesDataset(test_data_in, test_data_out)
             
-        
-
-
+    
 
             #DOING SHRED
 
@@ -759,9 +749,9 @@ def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
     }
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     if DNS_case=='RE2500':
-        rms_fname = adr_loc + "\\rms_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
+        rms_fname = adr_loc +  "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
+        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
 
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
@@ -830,7 +820,7 @@ def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, r
     }
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     
-    rms_fname = adr_loc + "\\rms_SHRED_"+case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
+    rms_fname = adr_loc + "\\instantaneous_rms_SHRED_"+case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
 
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
@@ -844,9 +834,9 @@ def open_instantaneous_rms_profile(DNS_case, SHRED_ens):
     
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     if DNS_case=='RE2500':
-        rms_fname = adr_loc + "\\rms_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
+        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
+        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
     with h5py.File(rms_fname, 'r') as rms_dict:
         rms_gt = np.array(rms_dict['rms_gt'])
         rms_recons = np.array(rms_dict['rms_recons'])
@@ -858,7 +848,7 @@ def open_instantaneous_rms_profile_exp(exp_case, experimental_ens, SHRED_ens):
     '''opens the instantaneous (non-time-averaged) rms profile for a specific DNS case and SHRED ensemble'''
     
     adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\rms_SHRED_"+exp_case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
+    rms_fname = adr_loc + "\\instantaneous_rms_SHRED_"+exp_case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
     with h5py.File(rms_fname, 'r') as rms_dict:
         rms_gt = np.array(rms_dict['rms_gt'])
         rms_recons = np.array(rms_dict['rms_recons'])
@@ -933,47 +923,61 @@ def power_spectral_density_compare(gt, recon, num_scales, DNS=True, DNS_case='RE
         dx=1e-3
         dy=dx
         cutoff_index = 7
-    # Compute 2D FFT for each (nx, ny) plane and average over time
-    #gt_fft = np.mean([np.abs(fft2(gt[:, :, t]))**2 for t in range(nt2)], axis=0)
-    #recon_fft = np.mean([np.abs(fft2(recon[:, :, t]))**2 for t in range(nt)], axis=0)
+            
 
-    
-            
-    
-           
-            
     gt = np.transpose(gt, (2,0,1))
     gt_fft, k_vals = calculate_psd_1d(gt, dx, dy, DNS)
     recon = np.transpose(recon, (2,0,1))
     recon_fft, k_vals = calculate_psd_1d(recon, dx, dy, DNS)
-    # Radially bin the FFT results by wavenumber magnitude
-    #kx = np.fft.fftfreq(nx)
-    #ky = np.fft.fftfreq(ny)
-    #kx_grid, ky_grid = np.meshgrid(kx, ky, indexing="ij")
-    #k_magnitude = np.sqrt(kx_grid**2 + ky_grid**2)
 
     # Bin indices
     k_bins = np.linspace(0, k_vals.max(), bins)
     psd_diff = []
-    
-    #calculate difference along total length of spectrum
-    #num_scales=len(recon_fft)
-    #for i in range(num_scales):
-    #    mask = (k_bins[i] <= k_vals) & (k_vals < k_bins[i + 1])
-    #    psd_diff.append(np.mean(np.abs(gt_fft[mask] - recon_fft[mask])))
-    #gt_int = scipy.integrate.simpson(gt_fft[:cutoff_index], x=k_vals[:cutoff_index])
-    
-    #recon_int = scipy.integrate.simpson(recon_fft[:cutoff_index], x=k_vals[:cutoff_index])
-    #psd_error = np.abs(gt_int - recon_int)/gt_int
-    # Normalize error by ground truth PSD
-    #psd_error = np.sum(psd_diff) / np.sum(gt_fft)
 
     return gt_fft, recon_fft, k_vals
 
 
 #add docstring
 def calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens):
-                
+    """
+    Compute rank-dependent, normalized 1D PSDs for a selected plane and compare
+    ground truth vs SVD-compressed vs SHRED-reconstructed fields.
+
+    For each rank r in `r_vals`, this loads/constructs the SVD truncation and the
+    corresponding SHRED reconstruction (DNS or experimental), computes the PSD
+    versus wavenumber, normalizes each spectrum by the ground-truth spectral
+    maximum, and rescales k by the integral length scale.
+
+    Parameters
+    ----------
+    r_vals : Sequence[int]
+        SVD ranks to evaluate.
+    case : str
+        Case identifier (e.g., 'RE1000', 'RE2500', 'P25', 'P50').
+    DNS : bool
+        True for DNS data; False for experimental data.
+    vel_planes : Sequence[int]
+        Plane indices available; the plane at `plane_index` is analyzed.
+    plane_index : int
+        Index selecting the plane within `vel_planes` (DNS) or plane list (exp).
+    num_sensors : int
+        Number of surface sensors used by SHRED.
+    SHRED_ens : int
+        SHRED ensemble identifier.
+    experimental_ens : int
+        Experimental ensemble identifier (ignored if DNS=True).
+
+    Returns
+    -------
+    psd_gt : np.ndarray, shape (K,)
+        Ground-truth normalized PSD for the selected plane.
+    psd_svd_r : np.ndarray, shape (len(r_vals), K)
+        Normalized PSDs of SVD-compressed fields for each rank.
+    psd_recons_r : np.ndarray, shape (len(r_vals), K)
+        Normalized PSDs of SHRED reconstructions for each rank.
+    k_vals : np.ndarray, shape (K,)
+        Dimensionless wavenumber vector (k * L_infty).
+    """      
 
     for i in range(len(r_vals)):
         r = r_vals[i]
@@ -1362,7 +1366,7 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
                 planes = ['H395', 'H390', 'H375', 'H350', 'H300']
                 plane = planes[vel_planes[j]-1]
                 print("Plane: ", plane)
-                X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_expk(case, plane)
+                X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
                 #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
                 V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, rank, num_sensors, ensemble, vel_planes, DNS=False,  plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
