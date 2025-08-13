@@ -1,0 +1,10 @@
+data_root: ${SHRED_DATA_DIR}   # fallback handled in code
+dns:
+  RE1000: ${DATA_ROOT}/dns/RE1000
+  RE2500: ${DATA_ROOT}/dns/RE2500
+exp:
+  P25: ${DATA_ROOT}/exp/P25
+  P50: ${DATA_ROOT}/exp/P50
+outputs:
+  cache: ./cache
+  results: ./results
