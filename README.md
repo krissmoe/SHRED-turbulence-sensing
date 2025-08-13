@@ -20,7 +20,7 @@ Outputs — reconstructions vs depth, temporal RMS tracking, PSD comparisons, an
 
 Example video showing ground truth fields, compressed fields and SHRED reconstructed fields, of the surface elevation profile (top), and two velocity fields at different depths (below):
 
-[![Watch the video](Figures/SHRED_architecture.png)](Figures/Shred%20DNS.mp4)
+[![Watch the video](Figures/SHRED_architecture.png)](Figures/SHRED_DNS.mp4)
 
 
 
@@ -120,12 +120,12 @@ plot_results.py — high-level plotting: multi-panel layouts, PSD panels with in
 Run turbulence sensing SHRED.ipynb — end-to-end demo + figure reproduction.
 
 
-Citing
+# Citing
 If you use this code, please cite the paper and the archived code as follows:
 
 TBD
 
-Acknowledgements
+# Acknowledgements
 Based on SHRED by Williams et al. We thank collaborators (NTNU, UW) and funding agencies for support, DNS datasets, and T-Tank experiments.
 
 
