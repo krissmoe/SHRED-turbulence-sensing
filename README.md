@@ -127,12 +127,6 @@ computes error metrics (NMSE, SSIM, PSNR, PSD-error)
 
 reproduces the key figures
 
-# Reproducing figures
-Most paper figures are generated through functions in plot_results.py and processdata.py, called from the main notebook. Examples include:
-
-
-If you only have artifacts (no raw data), the notebook will use those.
-
 # File guide
 models.py — SHRED network definition (LSTM + decoder) and training utilities (adapted from pyshred).
 
