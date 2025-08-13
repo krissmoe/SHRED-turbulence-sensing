@@ -32,7 +32,7 @@ Details about the error metrics can be found in the manuscript. The functions th
 DNS cases S1/S2 and experimental T-Tank cases E1/E2. Details about the turbulence statistics can be found in the manuscript.  
 
 ### Outputs
-Plots for manuscript. This include plots for
+Plots for manuscript are generated in 'Run turbulence sensing SHRED.ipynb'. This include plots for
 - SVD modes for DNS and experiments (Fig. 3-4)
 - Loss profile during SHRED training (Fig. 5)
 - Comparison of test data snapshots of ground truth, compressed fields and SHRED reconstruction (Fig. 6-7)
@@ -55,12 +55,12 @@ Example video showing ground truth fields, compressed fields and SHRED reconstru
 - Run turbulence sensing SHRED.ipynb   # main notebook: load artifacts, run/plot results
  models.py                            # SHRED model + training loop (based on pyshred)
 -  processdata.py                      # SHRED runs, metrics (MSE/SSIM/PSNR/PSD), post-analysis
--  lot_results.py                     # figure helpers (depth profiles, PSD panels, etc.)
+-  plot_results.py                     # figure helpers (depth profiles, PSD panels, etc.)
 -  utilities.py                        # I/O for DNS/T-Tank, SVD helpers, geometry, misc
 -  figures/                             # saved figures (created by notebook/plot scripts)
 -  data/                                # (empty; your local raw data lives elsewhere)
 -  artifacts/                           # optional: precomputed SVDs / SHRED outputs
--  equirements.txt / environment.yml   # dependencies (add one if missing)
+-  requirements.txt / environment.yml   # dependencies 
 -  README.md
 Large raw datasets are not tracked in git. See “Data & artifacts” below.
 
