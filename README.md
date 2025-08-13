@@ -19,7 +19,8 @@ Data — DNS cases S1/S2 and experimental T-Tank cases E1/E2.
 Outputs — reconstructions vs depth, temporal RMS tracking, PSD comparisons, and parameter sweeps over SVD rank/sensor count.
 
 Example video showing ground truth fields, compressed fields and SHRED reconstructed fields, of the surface elevation profile (top), and two velocity fields at different depths (below):
-[Watch: SHRED DNS demo](Figures/Shred%20DNS.mp4)
+
+[![Watch the video](Figures/SHRED_architecture.png)](Figures/Shred%20DNS.mp4)
 
 
 
