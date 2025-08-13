@@ -868,7 +868,7 @@ def open_and_reduce_SVD(experimental_ens, exp_case, rank, forecast=False, DNS=Fa
         
         return U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red
 
-
+#done
 def stack_svd_arrays_DNS(vel_planes, rank, DNS_case='RE2500', exp_ens=None, exp_case=None, exp_forecast=False):
     '''Load SVD matrices of DNS for selected planes + surface elevation
         and stack them in the shape of

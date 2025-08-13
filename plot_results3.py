@@ -5,6 +5,8 @@ import cmocean
 import processdata3 as processdata
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib import cycler
+
 
 '''Below are plotter functions needed to reproduce figures. These are called upon in the main Jupyter Notebook file'''
 
@@ -85,10 +87,10 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
     exp_case = utilities.case_name_converter(exp_case)
     
     #extract raw velocity field
-    u_fluc = utilities.get_velocity_plane_teetank(exp_case, plane)
+    u_fluc = utilities.get_velocity_plane_exp(exp_case, plane)
     ensemble = ensembles[0]
     
-    dimX, dimY, dimT = utilities.get_dims_teetank_vel()
+    dimX, dimY, dimT = utilities.get_dims_exp_vel()
     depths = ['H395', 'H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
     
@@ -112,6 +114,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
 
     #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
     plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
+
 
 '''Helper-function for Figs. 3-4'''
 #DONE
@@ -166,16 +169,14 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
     Notes
     -----
-    * Relies on the external ``ghibli`` palette for colours.
     * Assumes spatial modes are stored column‑wise: the first ``rank``
       columns correspond to surface (if ``name=="surf"``), the next
       ``rank`` columns to velocity.
     """
     
-    import ghibli as gh
 
     # Set color palette and LaTeX rendering
-    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes['MononokeMedium']
     plt.rcParams.update({
         "text.usetex": True,
         "font.family": "sans-serif",
@@ -231,12 +232,10 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
             ax.xaxis.set_visible(False)
 
     # Bottom row: Log-log plots of singular values and power spectral density
-    # ax1 = fig.add_subplot(gs[4, :1])
-    # ax2 = fig.add_subplot(gs[4, 2:])
     ax1 = fig.add_axes([0.05, 0.1, 0.4, 0.24])  # [left, bottom, width, height]
     ax2 = fig.add_axes([0.55, 0.1, 0.4, 0.24])  # Adjust left to create a gap
+    
     # Plot s_total
-
     ax1.semilogy(s_total[:len(s_total)-10]/s_total[0],label="Normalized Singular values") # second row, since we look at velocity here
    
     ax1.semilogy(np.cumsum(s_total[:len(s_total)-10] / sum(s_total)), label="Cumulative Sum", linestyle='--', color='#CD4F38')  # second row, since we look at velocity here
@@ -1512,21 +1511,51 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
 
 
 '''Plotter for Fig. 12'''
+#DONE
 def plot_psd_rank_comparison_with_SHRED(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
     '''produces Fig 12 in Appendix A
     
         plots PSD spectra for ground truth, as well as SVD compressed fields
-        and SHRED reconstructed fields, for a range of rank values.'''
+        and SHRED reconstructed fields, for a range of rank values.
+
+    Parameters
+    ----------
+    r_vals : array-like
+        SVD ranks to evaluate.
+    case : str
+        Flow case identifier (e.g., 'S1','S2','E1','E2').
+    DNS : bool
+        True for DNS data, False for experimental.
+    vel_planes : list
+        Available planes; `plane_index` selects which to plot.
+    plane_index : int
+        Index into `vel_planes` for the target plane.
+    num_sensors : int
+        Number of surface sensors used by SHRED.
+    SHRED_ens : int
+        SHRED ensemble index.
+    experimental_ens : int
+        Experimental ensemble index (ignored for DNS).
+    split_rank : int
+        Optional rank threshold to split curves between the two panels.
+
+    Returns
+    -------
+    None
+        Generates the comparison figure.
+    '''
+
     case = utilities.case_name_converter(case)
 
     psd_ground_truth, psd_compr, psd_recon, k_vals = processdata.calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens)
     
-    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, labels_recon=None, labels_compr=None, split_rank=split_rank, rank_list=r_vals)
+    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, split_rank=split_rank, rank_list=r_vals)
 
 
 
 '''Helper-function for Fig. 12'''
-def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_recon=None, labels_compr=None, split_rank=0, rank_list=None):
+#DONE
+def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_rank=0, rank_list=None):
     """
     Plots PSD comparisons for reconstructed and compressed data along with ground truth.
 
@@ -1540,15 +1569,11 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, labels_r
         Array of the ground truth PSD (shape: [n_frequencies]).
     k_bins : numpy.ndarray
         Array of wavenumber bins (shape: [n_frequencies]).
-    labels_recon : list of str
-        Labels for each PSD in psd_recon (optional).
-    labels_compr : list of str
-        Labels for each PSD in psd_compr (optional).
     split_rank : cutoff rank for curves in left frame
     """
     # Color map and LaTeX properties
-    import ghibli as gh
-    plt.rcParams['axes.prop_cycle'] = gh.ghibli_palettes['MononokeMedium']
+    
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes['MononokeMedium']
     plt.rcParams.update({
         "text.usetex": True,
         "font.family": "sans-serif",
@@ -1918,3 +1943,58 @@ def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, 
 
     gif_name = 'C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results'+"\\_" + DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end)
     utilities.create_GIF(filenames_snaps, gif_name)
+
+
+ghibli_palettes = {
+	'MarnieLight1':cycler('color', ['#95918E','#AF9699','#80C7C9','#8EBBD2','#E3D1C3','#B3DDEB','#F3E8CC']),
+	'MarnieMedium1':cycler('color', ['#28231D','#5E2D30','#008E90','#1C77A3','#C5A387','#67B8D6','#E9D097']),
+	'MarnieDark1':cycler('color', ['#15110E','#2F1619','#004749','#0E3B52','#635143','#335D6B','#73684C']),
+	'MarnieLight2':cycler('color', ['#8E938D','#94A39C','#97B8AF','#A2D1BD','#C0CDBC','#ACD2A3','#E6E58B']),
+	'MarnieMedium2':cycler('color', ['#1D271C','#274637','#2C715F','#44A57C','#819A7A','#58A449','#CEC917']),
+	'MarnieDark2':cycler('color', ['#0E130D','#14231C','#17382F','#22513D','#404D3C','#2C5223','#66650B']),
+	'PonyoLight':cycler('color', ['#A6A0A0','#ADB7C0','#94C5CC','#F4ADB3','#EEBCB1','#ECD89D','#F4E3D3']),
+	'PonyoMedium':cycler('color', ['#4C413F','#5A6F80','#278B9A','#E75B64','#DE7862','#D8AF39','#E8C4A2']),
+	'PonyoDark':cycler('color', ['#262020','#2D3740','#14454C','#742D33','#6E3C31','#6C581D','#746353']),
+	'LaputaLight':cycler('color', ['#898D90','#8D93A1','#9F99B5','#AFACC9','#D7CADE','#DAEDF3','#F7EABD']),
+	'LaputaMedium':cycler('color', ['#14191F','#1D2645','#403369','#5C5992','#AE93BE','#B4DAE5','#F0D77B']),
+	'LaputaDark':cycler('color', ['#090D10','#0D1321','#1F1935','#2F2C49','#574A5E','#5A6D73','#776A3D']),
+	'MononokeLight':cycler('color', ['#838A90','#BA968A','#9FA7BE','#B3B8B1','#E7A79B','#F2C695','#F5EDC9']),
+	'MononokeMedium':cycler('color', ['#06141F','#742C14','#3D4F7D','#657060','#CD4F38','#E48C2A','#EAD890']),
+	'MononokeDark':cycler('color', ['#030A10','#3A160A','#1F273E','#333831','#67271B','#724615','#756D49']),
+	'SpiritedLight':cycler('color', ['#8F9297','#9A9C97','#C19A9B','#C7C0C8','#B4DCF5','#E1D7CB','#DBEBF8']),
+	'SpiritedMedium':cycler('color', ['#1F262E','#353831','#833437','#8F8093','#67B9E9','#C3AF97','#B7D9F2']),
+	'SpiritedDark':cycler('color', ['#0F1217','#1A1C17','#411A1B','#474048','#345C75','#61574B','#5B6B78']),
+	'YesterdayLight':cycler('color', ['#768185','#7E8C97','#88988D','#9DAFC3','#B1D5BB','#ECE28B','#C3DAEA']),
+	'YesterdayMedium':cycler('color', ['#061A21','#132E41','#26432F','#4D6D93','#6FB382','#DCCA2C','#92BBD9']),
+	'YesterdayDark':cycler('color', ['#030E12','#0B1924','#15251A','#2A3C50','#3E6248','#796F18','#506777']),
+	'KikiLight':cycler('color', ['#8E8C8F','#9A9AA2','#D98594','#86C2DA','#D0C1AA','#C0DDE1','#E9DBD0']),
+	'KikiMedium':cycler('color', ['#1C1A1F','#333544','#B50A2A','#0E84B4','#9E8356','#7EBAC2','#D1B79E']),
+	'KikiDark':cycler('color', ['#0E0C0F','#1A1A22','#590514','#06425A','#50412A','#405D61','#695B50']),
+	'TotoroLight':cycler('color', ['#85898A','#959492','#AC9D96','#A8A6A9','#A1B1C8','#D6C0A9','#DCD3C4']),
+	'TotoroMedium':cycler('color', ['#0A1215','#2D2A25','#583B2B','#534C53','#446590','#AD8152','#BBA78C']),
+	'TotoroDark':cycler('color', ['#05090A','#151412','#2C1D16','#282629','#213148','#564029','#5C5344'])
+}
+
+def set_palette(palette):
+    
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes[palette]
+
+
+def test_plot():
+    import numpy as np
+    set_palette('LaputaMedium')
+    x = np.linspace(-5,+5,101)
+    y1 = np.sin(x)
+    y2 = np.cos(x)
+    y3 = np.tan(x)
+    y4 = np.sinh(x)
+    y5 = np.cosh(x)
+    y6 = np.tanh(x)
+    y7 = np.exp(x)
+    plt.plot(x,y1,linewidth=1)
+    plt.plot(x,y2,linewidth=2)
+    plt.plot(x,y3,linewidth=3)
+    plt.plot(x,y4,linewidth=4)
+    plt.plot(x,y5,linewidth=5)
+    plt.plot(x,y6,linewidth=6)
+    plt.plot(x,y7,'o')

@@ -497,7 +497,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                     f.create_dataset(key, data=value)
 
 
-#done-ish
+#done-ish, clean up comments
 def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
     """
     Train SHRED on experimental data from the turbulent 'T-tank' for a single velocity plane
