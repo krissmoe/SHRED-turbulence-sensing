@@ -20,7 +20,7 @@ Outputs — reconstructions vs depth, temporal RMS tracking, PSD comparisons, an
 
 Example video showing ground truth fields, compressed fields and SHRED reconstructed fields, of the surface elevation profile (top), and two velocity fields at different depths (below):
 
-[![Watch the video](Figures/SHRED_architecture.png)](Figures/SHRED_DNS.mp4)
+[![Watch the video](Figures/SHRED_DNS.mp4)](Figures/SHRED_DNS.mp4)
 
 
 
