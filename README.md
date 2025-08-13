@@ -8,19 +8,44 @@ Code and notebooks for SHRED (SHallow REcurrent Decoder) applied to free-surface
 Preprint: link • Archived code snapshot (Zenodo DOI): to be added
 
 # Overview
-Goal — infer subsurface velocity fields from a few surface elevation time series.
+### Goal: 
+infer sub-surface turbulence velocity fields from 3 surface sensor points capturing the time series of the surface elevation. 
 
-Method — SHRED = LSTM (temporal encoder) + shallow decoder (spatial mapping) trained in a compressed SVD basis. 
+### Method 
+We apply the SHallow REcurrent Decoder (SHRED), which combines an LSTM (temporal encoder) with a shallow decoder (spatial mapping). We train in a compressed SVD basis to ease the training while keeping the relevant turbulence. Figure below shows the general outline. 
 ![SHRED architecture](Figures/SHRED%20architecture.png)
 
+We input time series of surface elevation from three randomly placed surface sensor points into a two-layer LSTM. The LSTM encodes these input sequences into a latent representation of their temporal dynamics. This latent vector is then passed to a shallow decoder network (SDN), which maps it onto the velocity fields across depth. We do this in compressed space, by feeding into the SDN the compressed $\bV$ matrices of the SVD decomposition for the surface elevation and the subsurface velocity fields. These fields are used in training and validation not to learn the sub-surface time dynamics but only to learn the mapping of the surface time dynamics onto the subsurface fields.
 
-Data — DNS cases S1/S2 and experimental T-Tank cases E1/E2.
 
-Outputs — reconstructions vs depth, temporal RMS tracking, PSD comparisons, and parameter sweeps over SVD rank/sensor count.
+
+We quantify the reconstruction errors using five metrics:
+- Comparison of planar RMS values of the velocity from (uncompressed) ground truth and reconstructed fields
+- Normalized Mean Squared Error (NMSE) of reconstruction fields as compared to (uncompressed) ground truth
+- Power Spectral Density Error (PSDE) of spectra calculated from reconstructed turbulent fields, as compared to (uncompressed) ground truth
+- Structural Similarity Measure Index (SSIM) of reconstructed fields as compared to (uncompressed) ground truth
+- Peak Signal-to-Noise Ratio (PSNR) of reconstructed fields as compared to (uncompressed) ground truth
+
+Details about the error metrics can be found in the manuscript. The functions that calculate these can be found in 'Processdata.py'. 
+
+### Data 
+DNS cases S1/S2 and experimental T-Tank cases E1/E2. Details about the turbulence statistics can be found in the manuscript.  
+
+### Outputs
+Plots for manuscript. This include plots for
+- SVD modes for DNS and experiments (Fig. 3-4)
+- Loss profile during SHRED training (Fig. 5)
+- Comparison of test data snapshots of ground truth, compressed fields and SHRED reconstruction (Fig. 6-7)
+- Case-by-case comparison of ground truth and reconstructed instantaneous velocity RMS profiles in depth (Fig. 8)
+- Error metric plot for SHRED reconstructions, showing depth-dependence of metrics such as NMSE, PSDE, SSIM & PSNR (Fig. 9)
+- Comparison of ground truth vs reconstruction of time series of planar RMS velocity for test snapshots (Fig. 10)
+- Comparison of PSD spectra for ground truth, compressed and reconstructed fields for all cases (Fig. 11)
+- Analysis of rank-dependence of PSD spectra (Fig. 12, in Appendix A)
+- Analysis of rank-dependence of error metrics (Fig. 13, in Appendix A)
 
 Example video showing ground truth fields, compressed fields and SHRED reconstructed fields, of the surface elevation profile (top), and two velocity fields at different depths (below):
 
-[![Watch the video](Figures/SHRED_DNS.mp4)](Figures/SHRED_DNS.mp4)
+[![Watch the video](Figures/SHRED_DNS.mp4)]
 
 
 
