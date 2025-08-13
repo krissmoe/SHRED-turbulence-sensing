@@ -1,18 +1,12 @@
 import scipy as sp
-import scipy.linalg as la
 import scipy.io as sio
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
 import imageio
-import math
-from PIL import Image, ImageOps
 import h5py
 import mat73
 from lvpyio import read_set
-from tkinter import Tk, filedialog
 from skimage.filters import window
-import os
+
 
 
 '''---------------------------------------------------------------------------------------------------------------------------------'''
@@ -21,8 +15,8 @@ import os
 
 
 #done-ish, edit filename
-def write_teetank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False):
-    '''Function to load experimental PIV data from the 'Teetank' turbulent watertank experiment from Davis dataset to MAT-file
+def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False):
+    '''Function to load experimental PIV data from the 'T-tank' turbulent watertank experiment from Davis dataset to MAT-file
     returns MAT-file with velocity field of shape (ens, dimY, dimX, dimT)'''
     
     u_plane = np.zeros((num_ensembles, dimY, dimX, dimT))
@@ -52,7 +46,7 @@ def write_teetank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=19
     print("DONE!")
 
 #done-ish, edit filename
-def write_teetank_surf_to_mat(surf_data, case, depth):
+def write_T_tank_surf_to_mat(surf_data, case, depth):
     #tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
     tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
     tee_dict = {
@@ -66,7 +60,7 @@ def write_teetank_surf_to_mat(surf_data, case, depth):
     print("DONE!")
 
 
-def open_teetank_profilometry(addr):
+def open_T_tank_profilometry(addr):
     # If address is not provided, ask the user to provide a file path
     if addr is None:
         from tkinter import filedialog
