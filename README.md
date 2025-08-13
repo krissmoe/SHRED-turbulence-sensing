@@ -11,7 +11,9 @@ Preprint: link • Archived code snapshot (Zenodo DOI): to be added
 Goal — infer subsurface velocity fields from a few surface elevation time series.
 
 Method — SHRED = LSTM (temporal encoder) + shallow decoder (spatial mapping) trained in a compressed SVD basis. 
-<img src="Figures/SHRED architecture.png" alt="SHRED architecture" width="700">
+![SHRED architecture](Figures/SHRED%20architecture.png)
+
+
 Data — DNS cases S1/S2 and experimental T-Tank cases E1/E2.
 
 Outputs — reconstructions vs depth, temporal RMS tracking, PSD comparisons, and parameter sweeps over SVD rank/sensor count.
