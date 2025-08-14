@@ -63,16 +63,18 @@ README.md
 
 - data — folder containing raw velocity and profilometry data for DNS and experiments, as well as SVD  calculations. Folder structure:
 
-     \data
-      ---\DNS
-          ---\SVD
-       ---\experiment
-          ---\SVD
--output — folder containing SHRED outputs and error metric calculations. Folder structure:
-     \output
-      ---SHRED
-      ---\error
+  data/
+  ├─ DNS/
+  │ ├─ raw/ # huge DNS velocity/profilometry files (not in repo)
+  │ └─ SVD/ # DNS SVD .mat files (external storage)
+  ├─ exp/
+  │ ├─ raw/ # experimental raw files (not in repo)
+  │ └─ SVD/ # experimental SVD .mat files
 
+-output — folder containing SHRED outputs and error metric calculations. Folder structure:
+     output/
+     ├─ SHRED/ # SHRED run outputs (V_recons, V_svd, meta)
+     └─ metrics/ # error metrics, summaries, plot
 
 # Data & folder structure
 - Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
@@ -89,23 +91,23 @@ README.md
 3) Open Run turbulence sensing SHRED.ipynb and run all cells:
 
 4) Pre-processing:
-   - Once downloaded, load  DNS and experimental data from the folder: data\
+   - Once downloaded, load  DNS and experimental data from the folder: /data/DNS/raw or /data/exp/raw
    - Convert all data to same format, using .MAT files
-   - Calculate (or load, if pre-saved) SVD for velocity fields and save to data\DNS\SVD or data\experiments\SVD
+   - Calculate (or load, if pre-saved) SVD for velocity fields and save to /data/DNS/SVD or /data/exp/SVD
 
 5) SVD mode decompositon
    - Run plotter for SVD modes and turbulence spectrum
 
 6) Run SHRED
-   - Run the main SHRED calculation program. Outputs (V matrix of compressed and reconstruction) is saved to folder output\SHRED
+   - Run the main SHRED calculation program. Outputs (V matrix of compressed and reconstruction) are saved to folder /output/SHRED
 
 7) Post-SHRED analysis
-   - Calculate depth-dependent error metrics (NMSE, PSDE, SSIM & PSNR) and u_RMS of ground truth and reconstruction, and save outputs to \output\error
+   - Calculate depth-dependent error metrics (NMSE, PSDE, SSIM & PSNR) and u_RMS of ground truth and reconstruction, and save outputs to /output/metrics
    - Plot depth-dependend error metrics
-   - Calculate and plot instantaneous vertical u_RMS profiles and save calculations to \output\error
+   - Calculate and plot instantaneous vertical u_RMS profiles and save calculations to /output/metrics
    - Calculate and plot a chosen error metric time series
    - Calculate and plot PSD spectra for all cases (assumes 2 DNS and 2 experimental) for a chosen depth
-   - Calculate, save and plot parametric analysis of rank-dependence of error metrics and PSD spectra. Calculations saved to \output\error.
+   - Calculate, save and plot parametric analysis of rank-dependence of error metrics and PSD spectra. Calculations saved to /output/metrics.
 
  
 
