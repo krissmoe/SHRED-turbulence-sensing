@@ -64,23 +64,42 @@ README.md
 - data — folder containing raw velocity and profilometry data for DNS and experiments, as well as SVD  calculations. Folder structure:
 
   data/
+
+
   ├─ DNS/
+
+
   │ ├─ raw/ # huge DNS velocity/profilometry files (not in repo)
+
+
   │ └─ SVD/ # DNS SVD .mat files (external storage)
+
+
   ├─ exp/
+
+
   │ ├─ raw/ # experimental raw files (not in repo)
+
+
   │ └─ SVD/ # experimental SVD .mat files
 
 -output — folder containing SHRED outputs and error metric calculations. Folder structure:
+     
+     
      output/
+     
+     
      ├─ SHRED/ # SHRED run outputs (V_recons, V_svd, meta)
+     
+     
      └─ metrics/ # error metrics, summaries, plot
 
-# Data & folder structure
+## Data & folder structure
 - Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
 - SVD decompositions for DNS and experimental planes are essential. These can be calculated from script. Once calculated, we assume a folder structure where these are saved in the folders: \data\DNS\SVD or \data\experiments\SVD, located relative to code folder
 - SHRED calculations are saved and stored in \output\SHRED, located relative to code folder
 - all error metrics are saved and stored in \output\error\, located relative to code folder
+
 
 # Quickstart overview
 
