@@ -145,12 +145,10 @@ If you use this code, please cite the paper and the archived code as follows:
 TBD
 
 # Acknowledgements
-Code is based on the original SHRED codebase by Williams et al (2024). 
+Code is based on the original SHRED codebase by Williams et al (2024). [![Williams et al (2024)](https://doi.org/10.1098/rspa.2024.0054)]
 
-SHRED Code base: https://github.com/Jan-Williams/pyshred
+Original SHRED Code base: https://github.com/Jan-Williams/pyshred
 
-Article can be found at: https://doi.org/10.1098/rspa.2024.0054
 
-We thank collaborators (NTNU, UW) and funding agencies for support, DNS datasets, and T-Tank experiments.
 
 
