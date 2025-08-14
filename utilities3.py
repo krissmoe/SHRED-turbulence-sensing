@@ -197,25 +197,25 @@ def get_velocity_plane_DNS(DNS_case, plane, addr=''):
     return u_fluc
 
 #done
-def get_velocity_plane_exp(case, plane):
+def get_velocity_plane_exp(case, plane, addr=''):
     '''reads PIV velocity planes from experimental case
         with plane indicating plane index, ranging from 1 to 5'''
     depths = ['H395', 'H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    u = read_exp_plane(case,depth,variable='U0')
+    u = read_exp_plane(case,depth,variable='U0', addr=addr)
     #structure of u is (ens, dimY, dimX, dimT)
     u_mean = np.nanmean(u, axis=3, keepdims=True)
     u_fluc = u - u_mean
     return u_fluc
 
 #done
-def get_surface_exp(case, plane):
+def get_surface_exp(case, plane, addr=''):
     '''reads profilometry surface from experimental case
         for the corresponding paired plane
         with plane indicating plane index, ranging from 1 to 5'''
     depths = ['H395','H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    surf_fluc = read_exp_surface(case, depth)
+    surf_fluc = read_exp_surface(case, depth, addr)
     return surf_fluc
 
 #done
@@ -258,10 +258,11 @@ def get_mesh_DNS(DNS_case):
     XX, YY = np.meshgrid(X, Y)
     return XX, YY
 
-#done-ish, edit filename
-def get_mesh_exp(case='P50', depth='H390'):
+#done
+def get_mesh_exp(case='P50', depth='H390', addr=''):
     '''get the spatial mesh grid for the experiment'''
-    addr = 'E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\surfMesh_' + depth + '_' + case +'.mat'
+    addr = addr_string(addr, "data/exp/raw/")
+    addr = addr + 'surfMesh_' + depth + '_' + case +'.mat'
     meshes = mat73.loadmat(addr)
     #print(meshes)
     X_surf = meshes['xMesh']
@@ -277,14 +278,17 @@ def get_mesh_exp(case='P50', depth='H390'):
     return X_surf, Y_surf, X_vel, Y_vel
 
 
-#done-ish, edit filename
-def get_zz_DNS(DNS_case):
+#done
+def get_zz_DNS(DNS_case, addr=''):
     '''get depth coordinate z for DNS'''
+    
+    addr = addr_string(addr, 'data/DNS/raw/')
+    
     if DNS_case=='RE2500':
 
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\zz.mat"
+        fname = addr + "zz.mat"
     else:
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\RE1000_WEinf\\zz_RE1000.mat"
+        fname = addr + "zz_RE1000.mat"
     data = sio.loadmat(fname)
     zz = data['zz'][:,0]
     z = 1 -zz
@@ -298,10 +302,12 @@ def get_zz_exp():
     z = np.array([-0.5, -1.0, -2.5, -5.0, -10.0])
     return z
 
-#done-ish, edit filename
-def get_integral_length_scale(DNS_case):
+#done
+def get_integral_length_scale(DNS_case, addr=''):
     '''reads the integral length scale from file'''
-    tscales_fname = "E:\\Users\krissmoe\Documents\PhD data storage\SHRED DNS Backup\\TurbScales_" + DNS_case + ".mat"
+
+    addr = addr_string(addr, 'data/DNS/raw/')
+    tscales_fname = addr + "TurbScales_" + DNS_case + ".mat"
     TurbScales = sp.io.loadmat(tscales_fname)
 
     L_int = TurbScales['TurbScales']['Lint'][0,0][0][0]
@@ -313,8 +319,8 @@ def get_integral_length_scale(DNS_case):
     u_Rep = TurbScales['TurbScales']['uRep'][0,0][0][0]
     return L_int
 
-#done-ish, edit filename
-def get_normalized_z(z, z_norm, DNS_case):
+#done
+def get_normalized_z(z, z_norm, DNS_case, addr=''):
     '''takes in a z axis (1D array)
         and z_norm argument,
         and normalizes the axis wrt. a length scale
@@ -324,7 +330,8 @@ def get_normalized_z(z, z_norm, DNS_case):
         '''
     
     #load file with scales:
-    tscales_fname = "E:\\Users\krissmoe\Documents\PhD data storage\SHRED DNS Backup\\TurbScales_" + DNS_case + ".mat"
+    addr = addr_string(addr, 'data/DNS/raw/')
+    tscales_fname = addr + "TurbScales_" + DNS_case + ".mat"
     TurbScales = sp.io.loadmat(tscales_fname)
 
     L_int = TurbScales['TurbScales']['Lint'][0,0][0][0]
