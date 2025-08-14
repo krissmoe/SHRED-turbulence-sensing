@@ -1888,7 +1888,7 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
 
 
 #done-ish, edit filename
-def calc_RMS_profile_true(DNS_case, vel_planes, dimT):
+def calc_RMS_profile_true(DNS_case, vel_planes, dimT, addr=''):
     """
     Compute and save vertical RMS profiles time series for selected DNS planes.
 
@@ -1918,7 +1918,7 @@ def calc_RMS_profile_true(DNS_case, vel_planes, dimT):
     for i in range(len(vel_planes)):
         plane = i+1
         print("plane: ", plane)
-        u_fluc = utilities.get_velocity_plane_DNS(DNS_case,plane)
+        u_fluc = utilities.get_velocity_plane_DNS(DNS_case,plane, addr)
         u_fluc_2d = utilities.convert_3d_to_2d(u_fluc)
         rms_time[i,:] = utilities.RMS_plane(u_fluc_2d)
     
@@ -1959,7 +1959,7 @@ def get_RMS_profile_true(DNS_case, vel_planes):
 
 
 #done-ish, edit filename
-def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles):
+def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles, addr=''):
     '''num_exp_ens: number of experimental ensembles to load'''
     case = utilities.case_name_converter(case)
 
@@ -1971,7 +1971,7 @@ def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles
         plane = planes[vel_planes[i]-1]
 
 
-        u = utilities.read_exp_plane(case=case,depth=plane,variable='U0',surface=False)
+        u = utilities.read_exp_plane(case=case,depth=plane,variable='U0', addr=addr)
         u = u - np.mean(u, axis=3, keepdims=True)
 
         for j in range(num_experimental_ensembles):
