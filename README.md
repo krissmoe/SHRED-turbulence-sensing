@@ -43,26 +43,93 @@ Plots for manuscript are generated in 'Run turbulence sensing SHRED.ipynb'. This
 - Analysis of rank-dependence of PSD spectra (Fig. 12, in Appendix A)
 - Analysis of rank-dependence of error metrics (Fig. 13, in Appendix A)
 
-Example video showing ground truth fields, compressed fields and SHRED reconstructed fields, of the surface elevation profile (top), and two velocity fields at different depths (below):
 
-[![Watch the video](Figures/SHRED_DNS.mp4)]
+# Repository guide
 
+README.md
 
-
-# Repository layout
-
-
-- Run turbulence sensing SHRED.ipynb   # main notebook: load artifacts, run/plot results
- models.py                            # SHRED model + training loop (based on pyshred)
--  processdata.py                      # SHRED runs, metrics (MSE/SSIM/PSNR/PSD), post-analysis
--  plot_results.py                     # figure helpers (depth profiles, PSD panels, etc.)
--  utilities.py                        # I/O for DNS/T-Tank, SVD helpers, geometry, misc
--  figures/                             # saved figures (created by notebook/plot scripts)
--  data/                                # (empty; your local raw data lives elsewhere)
--  artifacts/                           # optional: precomputed SVDs / SHRED outputs
+## Scripts
+#### main
+- Run turbulence sensing SHRED.ipynb — end-to-end demo + figure reproduction.
+#### Necessary additional script files
+- models.py — SHRED network definition (LSTM + decoder) and training utilities (adapted from pyshred).
+- processdata.py — SHRED run wrappers, error metrics (RMS/NMSE/SSIM/PSNR/PSD-error), ensemble averaging, figure-data preparation.
+- plot_results.py — high-level plotting: multi-panel layouts, PSD panels with insets, depth profiles, etc.
+- utilities.py — data loaders for DNS/T-Tank, mesh/geometry helpers, SVD compute/load, reshaping utilities.
+- paths.py — ensures correct paths for each file saved/loaded
 -  requirements.txt / environment.yml   # dependencies 
--  README.md
-Large raw datasets are not tracked in git. See “Data & artifacts” below.
+
+## Folders
+
+- data — folder containing raw velocity and profilometry data for DNS and experiments, as well as SVD  calculations. Folder structure:
+
+  data/
+
+
+  ├─ DNS/
+
+
+  │ ├─ raw/ # huge DNS velocity/profilometry files (not in repo)
+
+
+  │ └─ SVD/ # DNS SVD .mat files (external storage)
+
+
+  ├─ exp/
+
+
+  │ ├─ raw/ # experimental raw files (not in repo)
+
+
+  │ └─ SVD/ # experimental SVD .mat files
+
+-output — folder containing SHRED outputs and error metric calculations. Folder structure:
+     
+     
+     output/
+     
+     
+     ├─ SHRED/ # SHRED run outputs (V_recons, V_svd, meta)
+     
+     
+     └─ metrics/ # error metrics, summaries, plot
+
+## Data & folder structure
+- Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
+- SVD decompositions for DNS and experimental planes are essential. These can be calculated from script. Once calculated, we assume a folder structure where these are saved in the folders: \data\DNS\SVD or \data\experiments\SVD, located relative to code folder
+- SHRED calculations are saved and stored in \output\SHRED, located relative to code folder
+- all error metrics are saved and stored in \output\error\, located relative to code folder
+
+
+# Quickstart overview
+
+1) Put precomputed artifacts into artifacts/ (or compute SVDs locally).
+
+2) Set the path variables (see above).
+
+3) Open Run turbulence sensing SHRED.ipynb and run all cells:
+
+4) Pre-processing:
+   - Once downloaded, load  DNS and experimental data from the folder: /data/DNS/raw or /data/exp/raw
+   - Convert all data to same format, using .MAT files
+   - Calculate (or load, if pre-saved) SVD for velocity fields and save to /data/DNS/SVD or /data/exp/SVD
+
+5) SVD mode decompositon
+   - Run plotter for SVD modes and turbulence spectrum
+
+6) Run SHRED
+   - Run the main SHRED calculation program. Outputs (V matrix of compressed and reconstruction) are saved to folder /output/SHRED
+
+7) Post-SHRED analysis
+   - Calculate depth-dependent error metrics (NMSE, PSDE, SSIM & PSNR) and u_RMS of ground truth and reconstruction, and save outputs to /output/metrics
+   - Plot depth-dependend error metrics
+   - Calculate and plot instantaneous vertical u_RMS profiles and save calculations to /output/metrics
+   - Calculate and plot a chosen error metric time series
+   - Calculate and plot PSD spectra for all cases (assumes 2 DNS and 2 experimental) for a chosen depth
+   - Calculate, save and plot parametric analysis of rank-dependence of error metrics and PSD spectra. Calculations saved to /output/metrics.
+
+ 
+
 
 # Installation
 bash
@@ -79,64 +146,7 @@ source .venv/bin/activate     # (Windows: .venv\Scripts\activate)
 pip install -r requirements.txt
 Core deps: numpy, scipy, matplotlib, torch, h5py, scikit-image, cmocean, tqdm.
 
-# Data & artifacts
-Raw data (DNS / T-Tank) must be stored outside the repo.
 
-Precomputed artifacts (SVDs, SHRED test outputs) can be downloaded from Zenodo once available and placed under:
-
-Copy
-Edit
-artifacts/
-  ├─ SVD/
-  └─ SHRED/
-If you have raw data and want to recompute SVDs, see utilities3.py (e.g. save_svd_full) or use the main notebook.
-
-Configure paths via one of:
-
-environment variables:
-
-bash
-Copy
-Edit
-export SHRED_DATA_ROOT=/path/to/raw/data
-export SHRED_ARTIFACTS_ROOT=/path/to/artifacts
-export SHRED_FIGURES_ROOT=./figures
-or a small config.yaml the code reads:
-
-yaml
-Copy
-Edit
-paths:
-  data_root: "/path/to/raw/data"
-  artifacts_root: "/path/to/artifacts"
-  figures_root: "./figures"
-(Where possible, we avoid hard-coded Windows paths and read from config.)
-
-# Quickstart
-Put precomputed artifacts into artifacts/ (or compute SVDs locally).
-
-Set the path variables (see above).
-
-Open Run turbulence sensing SHRED.ipynb and run all cells:
-
-loads SVDs + SHRED outputs
-
-plots reconstructions vs ground truth at selected depths
-
-computes error metrics (NMSE, SSIM, PSNR, PSD-error)
-
-reproduces the key figures
-
-# File guide
-models.py — SHRED network definition (LSTM + decoder) and training utilities (adapted from pyshred).
-
-utilities.py — data loaders for DNS/T-Tank, mesh/geometry helpers, SVD compute/load, reshaping utilities.
-
-processdata.py — SHRED run wrappers, error metrics (RMS/NMSE/SSIM/PSNR/PSD-error), ensemble averaging, figure-data preparation.
-
-plot_results.py — high-level plotting: multi-panel layouts, PSD panels with insets, depth profiles, etc.
-
-Run turbulence sensing SHRED.ipynb — end-to-end demo + figure reproduction.
 
 
 # Citing
