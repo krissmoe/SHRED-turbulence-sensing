@@ -9,7 +9,7 @@ Preprint: link • Archived code snapshot (Zenodo DOI): to be added
 
 # Overview
 ### Goal: 
-infer subsurface turbulence velocity fields from 3 surface sensor points capturing the time series of the surface elevation. 
+infer subsurface turbulence velocity fields from 3 surface sensor points capturing the time series of the surface elevation, in two turbulent DNS cases (S1 & S2), and two cases of experimental cases (E1 & E2) from a turbulent water tank (T-tank).
 
 ### Method 
 We apply the SHallow REcurrent Decoder (SHRED), which combines an LSTM (temporal encoder) with a shallow decoder (spatial mapping). We train in a compressed SVD basis to ease the training while keeping the relevant turbulence. Figure below shows the general outline. 
@@ -57,7 +57,7 @@ README.md
 - plot_results.py — high-level plotting: multi-panel layouts, PSD panels with insets, depth profiles, etc.
 - utilities.py — data loaders for DNS/T-Tank, mesh/geometry helpers, SVD compute/load, reshaping utilities.
 - paths.py — ensures correct paths for each file saved/loaded
--  requirements.txt / environment.yml   # dependencies 
+-  requirements.txt / environment.yml   — dependencies 
 
 ## Folders
 
@@ -69,30 +69,31 @@ README.md
   ├─ DNS/
 
 
-  │ ├─ raw/ # huge DNS velocity/profilometry files (not in repo)
+  │ ├─ raw/     # huge DNS velocity/profilometry files (not in repo)
 
 
-  │ └─ SVD/ # DNS SVD .mat files (external storage)
+  │ └─ SVD/     # DNS SVD .mat files (external storage)
 
 
   ├─ exp/
 
 
-  │ ├─ raw/ # experimental raw files (not in repo)
+  │ ├─ raw/     # experimental raw files (not in repo)
 
 
-  │ └─ SVD/ # experimental SVD .mat files
+  │ └─ SVD/     # experimental SVD .mat files
 
--output — folder containing SHRED outputs and error metric calculations. Folder structure:
-     
+
+
+- output — folder containing SHRED outputs and error metric calculations. Folder structure:
      
      output/
      
      
-     ├─ SHRED/ # SHRED run outputs (V_recons, V_svd, meta)
+     ├─ SHRED/     # SHRED run outputs (V_recons, V_svd, meta)
      
      
-     └─ metrics/ # error metrics, summaries, plot
+     └─ metrics/   # error metrics, summaries, plot
 
 ## Data & folder structure
 - Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
@@ -129,7 +130,6 @@ README.md
    - Calculate, save and plot parametric analysis of rank-dependence of error metrics and PSD spectra. Calculations saved to /output/metrics.
 
  
-
 
 # Installation
 bash
