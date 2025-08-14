@@ -535,7 +535,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
 
         #get SHRED V matrices
         test_recons, test_ground_truth, test_indices = utilities.open_SHRED(experimental_ens, exp_case, rank, num_sensors, 
-                                                                            SHRED_ens, plane_list, DNS=False, plane=plane, full_planes=True, forecast=forecast)
+                                                                            SHRED_ens, plane_list, DNS=False, exp_plane=plane, full_planes=True, forecast=forecast)
 
         #get surface elevation
         all_rows = []
