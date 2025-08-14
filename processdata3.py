@@ -282,8 +282,8 @@ def calculate_psd_1d(snapshots, dx=1.0, dy=1.0, DNS=False, time_avg=True):
 '''-----------------------------------------------------------------------------------------------------------------------------------'''
 
 '''SHRED ANALYSIS FUNCTIONS'''
-#done-ish
-def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
+#done
+def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE', addr=''):
     """
     Train and evaluate SHRED on multiple DNS ensembles and SVD ranks, then
     save reconstructed test snapshots to `.mat` files.
@@ -472,8 +472,8 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                 'test_indices' : test_indices,
             }
             
-            #NOTE: hard-coded file naming system
-            adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+            adr_loc = utilities.addr_string(addr, 'output/SHRED/')
+        
             
             if full_planes:
                 plane_string ="_full_planes"
@@ -484,21 +484,21 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                     plane_string = plane_string + "_" +  str(vel_planes[i]) 
 
             if random_sampling:
-                SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
+                SHRED_fname = adr_loc + "SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
                 if DNS_case=='RE1000':
-                    SHRED_fname = adr_loc + "\SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
+                    SHRED_fname = adr_loc + "SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
             else:
                 if DNS_case=='RE1000':
-                    SHRED_fname = adr_loc + "\SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
+                    SHRED_fname = adr_loc + "SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
                 else:
-                    SHRED_fname = adr_loc + "\SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
+                    SHRED_fname = adr_loc + "SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
 
 
-#done-ish, clean up comments
-def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
+#done
+def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE', addr=''):
     """
     Train SHRED on experimental data from the turbulent 'T-tank' for a single velocity plane
     plus the surface, across multiple SVD ranks and experimental ensemble seeds, then
@@ -684,13 +684,13 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
                 'test_ground_truth': test_ground_truth,
                 'test_indices' : test_indices,
             }
-            #NOTE: hard-coded file naming system
             
-            adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+            
+            adr_loc = utilities.addr_string(addr, 'output/SHRED/')
             if random_sampling:
-                SHRED_fname = adr_loc + "\Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
+                SHRED_fname = adr_loc + "Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
             else:
-                SHRED_fname = adr_loc + "\SHRED_r"+ str(r) +"_" + case + "_" +exp_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
+                SHRED_fname = adr_loc + "SHRED_r"+ str(r) +"_" + case + "_" +exp_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
