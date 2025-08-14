@@ -9,7 +9,7 @@ Preprint: link • Archived code snapshot (Zenodo DOI): to be added
 
 # Overview
 ### Goal: 
-infer subsurface turbulence velocity fields from 3 surface sensor points capturing the time series of the surface elevation. 
+infer subsurface turbulence velocity fields from 3 surface sensor points capturing the time series of the surface elevation, in two turbulent DNS cases (S1 & S2), and two cases of experimental cases (E1 & E2) from a turbulent water tank (T-tank).
 
 ### Method 
 We apply the SHallow REcurrent Decoder (SHRED), which combines an LSTM (temporal encoder) with a shallow decoder (spatial mapping). We train in a compressed SVD basis to ease the training while keeping the relevant turbulence. Figure below shows the general outline. 
@@ -57,7 +57,7 @@ README.md
 - plot_results.py — high-level plotting: multi-panel layouts, PSD panels with insets, depth profiles, etc.
 - utilities.py — data loaders for DNS/T-Tank, mesh/geometry helpers, SVD compute/load, reshaping utilities.
 - paths.py — ensures correct paths for each file saved/loaded
--  requirements.txt / environment.yml   # dependencies 
+-  requirements.txt / environment.yml   — dependencies 
 
 ## Folders
 
@@ -130,7 +130,6 @@ README.md
    - Calculate, save and plot parametric analysis of rank-dependence of error metrics and PSD spectra. Calculations saved to /output/metrics.
 
  
-
 
 # Installation
 bash
