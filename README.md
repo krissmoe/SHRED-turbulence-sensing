@@ -69,31 +69,31 @@ README.md
   ├─ DNS/
 
 
-  │ ├─ raw/ # huge DNS velocity/profilometry files (not in repo)
+  │ ├─ raw/     # huge DNS velocity/profilometry files (not in repo)
 
 
-  │ └─ SVD/ # DNS SVD .mat files (external storage)
+  │ └─ SVD/     # DNS SVD .mat files (external storage)
 
 
   ├─ exp/
 
 
-  │ ├─ raw/ # experimental raw files (not in repo)
+  │ ├─ raw/     # experimental raw files (not in repo)
 
 
-  │ └─ SVD/ # experimental SVD .mat files
+  │ └─ SVD/     # experimental SVD .mat files
 
 
 
--output — folder containing SHRED outputs and error metric calculations. Folder structure:
+- output — folder containing SHRED outputs and error metric calculations. Folder structure:
      
      output/
      
      
-     ├─ SHRED/ # SHRED run outputs (V_recons, V_svd, meta)
+     ├─ SHRED/     # SHRED run outputs (V_recons, V_svd, meta)
      
      
-     └─ metrics/ # error metrics, summaries, plot
+     └─ metrics/   # error metrics, summaries, plot
 
 ## Data & folder structure
 - Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
