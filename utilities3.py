@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 #done-ish, edit filename
-def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False):
+def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False, addr=''):
     '''Function to load experimental PIV data from the 'T-tank' turbulent watertank experiment from Davis dataset to MAT-file
     returns MAT-file with velocity field of shape (ens, dimY, dimX, dimT)'''
     
@@ -34,13 +34,14 @@ def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196
                     u_plane[ens,:,:,j] = image_frame[0][variable]
     case = case[1:]
     depth=depth[1:]
-    tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
-    tee_dict = {
+    #tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat"
+    fname = addr + 'data/exp/raw/case_'+case+"_"+depth+"_"+variable+".mat" 
+    PIV_dict = {
         'U': u_plane,
     }
 
-    with h5py.File(tee_fname, 'w') as f:
-        for key, value in tee_dict.items():
+    with h5py.File(fname, 'w') as f:
+        for key, value in PIV_dict.items():
             f.create_dataset(key, data=value)
     #sp.io.savemat(svd_fname, svd_dict)
     print("DONE!")
@@ -87,38 +88,48 @@ def open_T_tank_profilometry(addr):
     return surf
 
 
-#done-ish, edit filename
-def read_exp_plane(case='P25',depth='H390',variable='U0',surface=False):
-
-    tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
-
-    with h5py.File(tee_fname, 'r') as tee:
+#done
+def read_exp_plane(case='P25',depth='H390',variable='U0',addr=''):
+    if addr=='':
+        fname = 'data/exp/raw/case_'+case+"_"+depth+"_"+variable+".mat" 
+    else:
+        fname = addr + "case_"+case+"_"+depth+"_"+variable+".mat" 
+    
+    with h5py.File(fname, 'r') as exp:
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(tee.keys()))
 
-        U = np.array(tee['U'])
+        U = np.array(exp['U'])
     return U
 
+#done
+def read_exp_surface(case='P25', depth='H390', addr=''):
+    if addr=='':
+        fname = 'data/exp/raw/Eta_case_'+case+"_"+depth + ".mat" 
+    else:
+        fname = addr + "Eta_case_"+case+"_"+depth+".mat"
 
-#done-ish, edit filename
-def read_exp_surface(case='P25', depth='H390'):
-    surf_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
-
-
-    with h5py.File(surf_fname, 'r') as tee:
+    with h5py.File(fname, 'r') as exp:
         # List all datasets in the file
         #print("Keys in the HDF5 file:", list(tee.keys()))
 
-        surf_fluc = np.array(tee['eta'])
+        surf_fluc = np.array(exp['eta'])
     return surf_fluc
 
 
 #done-ish, edit filename
-def get_surface_DNS(DNS_case):
+def get_surface_DNS(DNS_case, addr=''):
     if DNS_case=='RE2500':
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\surfElev.mat"
+        if addr=='':
+            fname = "data//DNS/raw/RE2500/surfElev.mat"
+        else:
+            fname = addr + "surfElev.mat"
     else:
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\Re1000_WEinf\\surf_elev.mat"
+
+        if addr=='':
+            fname = "data//DNS/raw/RE1000/surf_elev.mat"
+        else:     
+            fname = addr + "surf_elev.mat"
     data = mat73.loadmat(fname)
     if DNS_case=='RE2500':
         surf_full = data['surfElev']
@@ -156,23 +167,31 @@ def get_normalized_surface_exp(exp_case, plane, experimental_ens):
 
     return X
 
-#done-ish, edit filename
-def get_velocity_plane_DNS(DNS_case, plane):
+#done
+def get_velocity_plane_DNS(DNS_case, plane, addr=''):
     '''reads velocity plane from the DNS data files
         plane indicates plane index starting from 0'''
     
     if DNS_case == 'RE2500':
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\VelocityPlanes\\u_layer"+str(plane)+".mat"
+        if addr=='':
+            fname = "data//DNS/raw/RE2500/" + "u_layer"+str(plane)+".mat"
+        else:  
+            fname = addr + "u_layer"+str(plane)+".mat"
         dimX = 256
         dimY=256
         dimT=12500
     else:
-        fname = "E:\\Users\krissmoe\Documents\PhD data storage\Re1000_WEinf\\u_layer"+str(plane)+".mat"
+        if addr=='':
+            fname = "data//DNS/raw/RE1000/" + "u_layer"+str(plane)+".mat"
+        else:
+            fname = addr + "u_layer"+str(plane)+".mat"
         dimX = 128
         dimY=128
         dimT=10900
     data = mat73.loadmat(fname)
     u = data['uPlane']
+
+    #calculates velocity fluctuation, removes mean flow
     u_mean = np.nanmean(u, axis=2, keepdims=True)
     u_fluc = u - u_mean
     return u_fluc
