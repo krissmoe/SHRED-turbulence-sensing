@@ -6,7 +6,7 @@ import processdata3 as processdata
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import cycler
-
+from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR, METRICS_DIR, PLOTS_DIR
 #test
 
 '''Below are plotter functions needed to reproduce figures. These are called upon in the main Jupyter Notebook file'''
@@ -336,7 +336,7 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
 
     #set location folder for plots
     #TODO: change address
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS"
+    
     
     if DNS_case=='RE2500':
         tot_num_planes=76
@@ -378,7 +378,7 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
                 ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=min_val, vmax=max_val)
                 ax.axis('off')
 
-            filename = adr_loc_3 + "compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
+            filename = PLOTS_DIR / "DNS_compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -514,11 +514,10 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
       :pyfunc:`utilities.open_SHRED`.
     * Hard-coded output path `adr_loc_3`; adjust for other environments.
     """
-    #TODO: Add other velocity fields to the plotting function as I get them
-    #set location folder for plots
+
     
     exp_case = utilities.case_name_converter(exp_case)
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\Tee_tank"
+    
     
     
     #iterate test snaps:
@@ -565,7 +564,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                     ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
                     ax.axis('off')
 
-                filename = adr_loc_3 + "Teetank_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+                filename = PLOTS_DIR / "exp_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
                 plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
                 plt.show()
@@ -611,7 +610,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
         # plt.tight_layout()
         #plt.show()
 
-            filename = adr_loc_3 + "Teetank_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+            filename = PLOTS_DIR / "exp_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -650,7 +649,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                 #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
                 #ax.axis('off')
         plt.show()
-        filename = adr_loc_3 + "Teetank_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_tee_ens_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)
+        filename = PLOTS_DIR / "exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)
         #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
         fig.savefig(filename + ".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
       
@@ -845,9 +844,8 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         #if ax==ax1 or ax==ax4 or ax==ax7 or ax==ax10:
         ax.tick_params(axis='y', which='major', labelsize=16)
     #fig.tight_layout()
-    plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
-    filename = adr_loc_3 + "rms_instantaneous"
+    plt.show() 
+    filename = PLOTS_DIR / "DNS_cases_rms_instantaneous"
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
@@ -1142,8 +1140,8 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
    
     #fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\DNS_cases_" 
-    filename = adr_loc_3 + "error_metrics"
+
+    filename = PLOTS_DIR /  "DNS_cases_error_metrics"
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1)
@@ -1178,7 +1176,7 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     -------
     None
     * Saves files as  
-      ``Results/time_series_error_metrics_<metric>.png`` and ``.pdf``.
+      ``time_series_error_metrics_<metric>.png`` and ``.pdf``.
 
     """
     RMS_true_S1, RMS_recons_S1, mse_snapshots_S1, ssim_snapshots_S1, psnr_snapshots_S1, psd_snapshots_S1= processdata.calculate_temporal_error_metrics('S1', ranks[0], vel_planes[0], 3, SHRED_ensembles[0], lags=52, forecast=False,  full_planes=True)
@@ -1285,8 +1283,8 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     
     fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\time_series_error_metrics_"+metric 
-    filename = adr_loc_3
+
+    filename = PLOTS_DIR / "time_series_error_metrics_"+metric 
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
@@ -1503,8 +1501,8 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
 
     fig.tight_layout()
     plt.show()
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\psd_compare" 
-    filename = adr_loc_3
+     
+    filename = PLOTS_DIR / "psd_compare"
     filename2 = filename + ".png"
     fig.savefig(filename2)
     fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
@@ -1668,7 +1666,7 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_ra
 
             
     # Save and display the plot
-    plt.savefig("psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig(PLOTS_DIR /"psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
 
@@ -1689,11 +1687,11 @@ def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_
 
     indices = np.arange(test_index_start, test_index_end+1)
     filenames = []
-    adr_loc_3 = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results\\"
+    
 
     for i in range(len(indices)):
         test_snap_index = indices[i]
-        fname = adr_loc_3 + "DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
+        fname = PLOTS_DIR / "DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
         filenames.append(fname) 
     utilities.create_GIF(filenames, gif_name)
 
@@ -1797,7 +1795,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.tick_params(axis='x', which='major', labelsize=13)
     plt.tick_params(axis='y', which='major', labelsize=13)
     #plt.ylabel('PSNR')
-    plt.savefig(var_str + "_analysis_DNS_"+DNS_case+".pdf")
+    plt.savefig(PLOTS_DIR / var_str + "_analysis_DNS_"+DNS_case+".pdf")
     plt.show()
 
 #DONE
@@ -1934,15 +1932,15 @@ def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, 
         # Adjust the layout so the plots do not overlap
         plt.tight_layout()
         if GIF_only:
-            adr = 'E:\\Users\krissmoe\Documents\PhD data storage\DNS plot throwaway'
+            adr = PLOTS_DIR /"DNS plot throwaway"
         else:
-            adr = 'E:\\Users\krissmoe\Documents\PhD data storage\DNS plot results'
+            adr = PLOTS_DIR / 'DNS plot results'
         savestring = adr + DNS_case + str(i) +".png"
         plt.savefig(savestring)
         filenames_snaps.append(savestring)
         #plt.show()
 
-    gif_name = 'C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\Results'+"\\_" + DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end)
+    gif_name = PLOTS_DIR / DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end)
     utilities.create_GIF(filenames_snaps, gif_name)
 
 

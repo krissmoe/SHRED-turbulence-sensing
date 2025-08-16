@@ -13,7 +13,8 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from scipy.fft import fft2, fftshift
 import scipy.signal as sig
-
+from pathlib import Path
+from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR, METRICS_DIR
 
 
 '''analysis of r dependence of PSD spectra'''
@@ -192,7 +193,7 @@ def calculate_PSD_r_vals_exp(u_fluc, rank_list, case, ensembles, plane):
             u_svd = np.transpose(u_fluc_nonan, (2,0,1))
             #print(u_svd.shape)
             
-            PSD_vals, k_vals = calculate_psd_1d(u_svd, dx=dx, dy=dy) #get_PSD_spectrum(u_fluc_nonan, swapaxis=False)
+            PSD_vals, k_vals = calculate_psd_1d(u_svd, dx=dx, dy=dy) 
             
             PSD_vals_all[j] = PSD_vals
 
@@ -283,7 +284,7 @@ def calculate_psd_1d(snapshots, dx=1.0, dy=1.0, DNS=False, time_avg=True):
 
 '''SHRED ANALYSIS FUNCTIONS'''
 #done
-def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE', addr=''):
+def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
     """
     Train and evaluate SHRED on multiple DNS ensembles and SVD ranks, then
     save reconstructed test snapshots to `.mat` files.
@@ -324,7 +325,6 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
     Notes
     -----
     * Baseline full SVD rank ``r = 1000`` is hard‑coded.
-    * File paths are Windows‑style; adjust `adr_loc` for portability.
     * Large raw DNS arrays must exist locally; not downloaded here.
     """
 
@@ -439,7 +439,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
             #DOING SHRED
             shred = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
             validation_errors = models.fit(shred, train_dataset, valid_dataset, criterion='MSE', batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
-            print("SHRED successfully done!")
+            print("SHRED completed successfully!")
             #SHRED DONE
 
 
@@ -472,7 +472,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                 'test_indices' : test_indices,
             }
             
-            adr_loc = utilities.fname_generator_string(addr, 'output/SHRED/')
+            
         
             
             if full_planes:
@@ -484,21 +484,21 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                     plane_string = plane_string + "_" +  str(vel_planes[i]) 
 
             if random_sampling:
-                SHRED_fname = adr_loc + "SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
+                SHRED_fname = SHRED_DIR / "SHRED_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
                 if DNS_case=='RE1000':
-                    SHRED_fname = adr_loc + "SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
+                    SHRED_fname = SHRED_DIR / "SHRED_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string +".mat"
             else:
                 if DNS_case=='RE1000':
-                    SHRED_fname = adr_loc + "SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
+                    SHRED_fname = SHRED_DIR / "SHRED_FORECAST_RE1000_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
                 else:
-                    SHRED_fname = adr_loc + "SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
+                    SHRED_fname = SHRED_DIR / "SHRED_FORECAST_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) + plane_string + ".mat"
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
 
 
 #done
-def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE', addr=''):
+def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
     """
     Train SHRED on experimental data from the turbulent 'T-tank' for a single velocity plane
     plus the surface, across multiple SVD ranks and experimental ensemble seeds, then
@@ -539,7 +539,6 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
     -----
     * Only **one** velocity plane is processed at a time; `full_planes`
       logic is DNS‑only.
-    * File paths are Windows‑specific; update `adr_loc` for portability.
     * `X` must contain the full‐length sensor trajectories covering all
       time steps of the reduced SVD matrices.
     """
@@ -653,7 +652,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
 
             shred = models.SHRED(num_sensors, m, hidden_size=64, hidden_layers=2, l1=350, l2=400, dropout=0.1).to(device)
             validation_errors = models.fit(shred, train_dataset, valid_dataset, batch_size=64, num_epochs=3000, lr=1e-3, verbose=True, patience=5)
-            print("SHRED successfully done!")
+            print("SHRED completed successfully!")
             #SHRED DONE
             
 
@@ -685,12 +684,10 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
                 'test_indices' : test_indices,
             }
             
-            
-            adr_loc = utilities.fname_generator_string(addr, 'output/SHRED/')
             if random_sampling:
-                SHRED_fname = adr_loc + "Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
+                SHRED_fname = SHRED_DIR / "Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
             else:
-                SHRED_fname = adr_loc + "SHRED_r"+ str(r) +"_" + case + "_" +exp_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
+                SHRED_fname = SHRED_DIR / "SHRED_r"+ str(r) +"_" + case + "_" +exp_plane +"_" +str(num_sensors) +"sensors_ens" + str(p) +"_prediction.mat"
             with h5py.File(SHRED_fname, 'w') as f:
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
@@ -700,7 +697,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
 
 '''POST-SHRED ANALYSIS FUNCTIONS AND ERROR METRIC ANALYSIS'''
 
-#done-ish, edit filename
+#done
 def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
     '''compute depth-dependent RMS velocity profile without time averaging'''
     
@@ -747,11 +744,11 @@ def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
         'rms_gt' : rms_gt,
         'rms_recons' : rms_recons
     }
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    
     if DNS_case=='RE2500':
-        rms_fname = adr_loc +  "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
+        rms_fname = METRICS_DIR / "instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
+        rms_fname = METRICS_DIR / "instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
 
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
@@ -759,7 +756,7 @@ def calculate_instantaneous_rms_profile(DNS_case, SHRED_ens, rank, num_sensors):
     
     return rms_gt, rms_recons
 
-#done-ish, edit filename
+#done
 def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, rank, num_sensors):
     '''compute depth-dependent RMS velocity profile without time averaging'''
     
@@ -787,7 +784,7 @@ def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, r
         X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
 
 
-        #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+        #open SHRED for this plane-surface-pairing, T-TANK-ensemble and SHRED ensemble
         V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, rank, num_sensors, SHRED_ens, vel_planes, DNS=False,  plane=plane, full_planes=True, forecast=False)
         num_test_snaps = len(test_indices)
         #get SVDs correctly
@@ -818,9 +815,8 @@ def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, r
         'rms_gt' : rms_gt,
         'rms_recons' : rms_recons
     }
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     
-    rms_fname = adr_loc + "\\instantaneous_rms_SHRED_"+case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
+    rms_fname = METRICS_DIR / "instantaneous_rms_SHRED_"+case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
 
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
@@ -828,27 +824,24 @@ def calculate_instantaneous_rms_profile_exp(case, experimental_ens, SHRED_ens, r
     
     return rms_gt, rms_recons
 
-#done-ish, edit filename
+#done
 def open_instantaneous_rms_profile(DNS_case, SHRED_ens):
     '''opens the instantaneous (non-time-averaged) rms profile for a specific DNS case and SHRED ensemble'''
-    
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
     if DNS_case=='RE2500':
-        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
+        rms_fname = METRICS_DIR /"instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
+        rms_fname = METRICS_DIR / "instantaneous_rms_SHRED"+ str(SHRED_ens) + "_RE1000.mat"
     with h5py.File(rms_fname, 'r') as rms_dict:
         rms_gt = np.array(rms_dict['rms_gt'])
         rms_recons = np.array(rms_dict['rms_recons'])
 
     return rms_gt, rms_recons
 
-#done-ish, edit filename
+#done
 def open_instantaneous_rms_profile_exp(exp_case, experimental_ens, SHRED_ens):
     '''opens the instantaneous (non-time-averaged) rms profile for a specific DNS case and SHRED ensemble'''
     
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\instantaneous_rms_SHRED_"+exp_case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
+    rms_fname = METRICS_DIR / "instantaneous_rms_SHRED_"+exp_case + "_SHREDens_" +  str(SHRED_ens) + "_teeEns_" + str(experimental_ens) + ".mat"
     with h5py.File(rms_fname, 'r') as rms_dict:
         rms_gt = np.array(rms_dict['rms_gt'])
         rms_recons = np.array(rms_dict['rms_recons'])
@@ -865,7 +858,7 @@ def normalized_mean_square_error(gt, recon):
 
 #add docstring
 def power_spectral_density_error(gt, recon, num_scales, DNS=True, DNS_case='RE2500'):
-    """Compute normalized mean error in the power spectral density for the X largest scales."""
+    """Compute normalized mean error in the power spectral density up to a defined cutoff wavenumber."""
 
     nx, ny, nt = recon.shape
     bins = nx // 2
@@ -937,7 +930,7 @@ def power_spectral_density_compare(gt, recon, num_scales, DNS=True, DNS_case='RE
     return gt_fft, recon_fft, k_vals
 
 
-#add docstring
+#done
 def calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens):
     """
     Compute rank-dependent, normalized 1D PSDs for a selected plane and compare
@@ -1039,9 +1032,9 @@ def calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, nu
         
 
 
-#remove stuff and add docstring
+#done (add docstring?)
 def power_spectral_density_error_time_series(gt, recon, num_scales, test_indices, DNS=True, DNS_case='RE2500'):
-    """Compute normalized mean error in the power spectral density for the X largest scales."""
+    """Compute normalized mean error in the power spectral density, for each test snapshot given by test_indices"""
 
     nx, ny, nt = recon.shape
     bins = nx // 2
@@ -1059,9 +1052,7 @@ def power_spectral_density_error_time_series(gt, recon, num_scales, test_indices
         dx=1e-3
         dy=dx
         cutoff_index = 7
-    # Compute 2D FFT for each (nx, ny) plane and average over time
-    #gt_fft = np.mean([np.abs(fft2(gt[:, :, t]))**2 for t in range(nt2)], axis=0)
-    #recon_fft = np.mean([np.abs(fft2(recon[:, :, t]))**2 for t in range(nt)], axis=0)
+
            
 
     gt = np.transpose(gt, (2,0,1))
@@ -1071,30 +1062,12 @@ def power_spectral_density_error_time_series(gt, recon, num_scales, test_indices
     recon_fft, k_vals = calculate_psd_1d(recon, dx, dy, DNS, time_avg=False)
     num_snaps=gt_fft.shape[0]
     print("shape fft: ", gt_fft.shape)
-    # Radially bin the FFT results by wavenumber magnitude
-    #kx = np.fft.fftfreq(nx)
-    #ky = np.fft.fftfreq(ny)
-    #kx_grid, ky_grid = np.meshgrid(kx, ky, indexing="ij")
-    #k_magnitude = np.sqrt(kx_grid**2 + ky_grid**2)
-
-    # Bin indices
-    k_bins = np.linspace(0, k_vals.max(), bins)
-    psd_diff = []
-
-    #calculate difference along total length of spectrum
-    #num_scales=len(recon_fft)
-    #for i in range(num_scales):
-    #    mask = (k_bins[i] <= k_vals) & (k_vals < k_bins[i + 1])
-    #    psd_diff.append(np.mean(np.abs(gt_fft[mask] - recon_fft[mask])))
-    #gt_int = np.zeros(num_snaps)
     psd_error = np.zeros(num_snaps)
     for i in range(num_snaps):
         gt_int = scipy.integrate.simpson(gt_fft[i,:cutoff_index], x=k_vals[:cutoff_index])
     
         recon_int = scipy.integrate.simpson(recon_fft[i,:cutoff_index], x=k_vals[:cutoff_index])
         psd_error[i] = np.abs(gt_int - recon_int)/gt_int
-    # Normalize error by ground truth PSD
-    #psd_error = np.sum(psd_diff) / np.sum(gt_fft)
 
     return psd_error
 
@@ -1112,7 +1085,7 @@ def mutual_information(hgram):
     nzs = pxy > 0 # Only non-zero pxy values contribute to the sum
     return np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
 
-#done-ish, edit filenames
+#done
 def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, full_planes=True):
     """
     Compute depth-dependent reconstruction metrics for SHRED runs on DNS
@@ -1144,8 +1117,7 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
     Returns
     -------
     None
-        Writes an HDF5 file per ensemble in
-        ``.../MAT_files/err_metrics/`` containing datasets:
+        Writes an HDF5 file per ensemble
 
         * ``RMS_recons``  
         * ``RMS_true``  
@@ -1154,10 +1126,6 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
         * ``psnr``  
         * ``psd``  
 
-    Notes
-    -----
-    * Assumes SHRED outputs exist in `.mat` files produced by
-      the companion functions in this code base.
     """
 
     DNS_case = utilities.case_name_converter(DNS_case)
@@ -1272,7 +1240,7 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
         }
 
 
-        adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\err_metrics"
+        
         if full_planes:
             plane_string ="_full_planes"
         else:  
@@ -1285,9 +1253,9 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
             fcast="_"
        
         if DNS_case=='RE2500': 
-            err_fname = adr_loc + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
         else:
-            err_fname = adr_loc + "_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
   
         with h5py.File(err_fname, 'w') as f:
             for key, value in err_dict.items():
@@ -1295,7 +1263,7 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
         print("saved successfully!")
 
 
-#done-ish, edit filenames
+#done
 def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, experimental_ensembles, lags=52, forecast=False, full_planes=True):
     """
     Compute vertical profiles of reconstruction-error metrics for SHRED
@@ -1435,8 +1403,6 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
                 'psd' : psd_error
             }
 
-
-            adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\err_metrics_TEE"
             if full_planes:
                 plane_string ="_full_planes"
             
@@ -1449,7 +1415,7 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
             else:
                 fcast="_"
             
-            err_fname = adr_loc + fcast +case+"_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(experimental_ensembles[k]) + plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics_TEE" + fcast +case+"_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(experimental_ensembles[k]) + plane_string +  ".mat"
             
             with h5py.File(err_fname, 'w') as f:
                 for key, value in err_dict.items():
@@ -1724,15 +1690,12 @@ def calculate_temporal_error_metrics_exp(case, rank, u_fluc, vel_plane, num_sens
 
 
 
-#done-ish, edit filename + add docstring
+#done (add docstring)
 def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, forecast=False, full_planes=True):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
     num_ens = len(SHRED_ensembles)
-
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\err_metrics"
-
     num_tot_planes = len(vel_planes)
     
     RMS_recons_ensembles = np.zeros((num_ens,num_tot_planes))
@@ -1761,9 +1724,9 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
             fcast ="_"
 
         if DNS_case=='RE2500': 
-            err_fname = adr_loc + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
         else:
-            err_fname = adr_loc + "_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat"
 
         
         with h5py.File(err_fname, 'r') as err_dict:
@@ -1799,15 +1762,13 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
     return RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse, std_ssim, std_psnr, std_psd
 
 
-#done-ish, edit filename + add docstring
+#done (add docstring)
 def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast=False, full_planes=True):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
     num_SHRED_ens = len(SHRED_ensembles)
     num_experimental_ens = len(exp_ensembles)
-
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files\err_metrics_TEE"
 
     RMS_recons_ensembles = np.zeros((num_experimental_ens, num_SHRED_ens,len(vel_planes)))
     RMS_true_ensembles = np.zeros((num_experimental_ens, num_SHRED_ens,len(vel_planes)))
@@ -1837,7 +1798,7 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
             else:
                 fcast ="_"
 
-            err_fname = adr_loc + fcast + case + "_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat"
+            err_fname = METRICS_DIR / "err_metrics_TEE" + fcast + case + "_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat"
 
         
             with h5py.File(err_fname, 'r') as err_dict:
@@ -1887,8 +1848,8 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
 
 
 
-#done-ish, edit filename
-def calc_RMS_profile_true(DNS_case, vel_planes, dimT, addr=''):
+#done
+def calc_RMS_profile_true(DNS_case, vel_planes, dimT):
     """
     Compute and save vertical RMS profiles time series for selected DNS planes.
 
@@ -1918,18 +1879,18 @@ def calc_RMS_profile_true(DNS_case, vel_planes, dimT, addr=''):
     for i in range(len(vel_planes)):
         plane = i+1
         print("plane: ", plane)
-        u_fluc = utilities.get_velocity_plane_DNS(DNS_case,plane, addr)
+        u_fluc = utilities.get_velocity_plane_DNS(DNS_case,plane)
         u_fluc_2d = utilities.convert_3d_to_2d(u_fluc)
         rms_time[i,:] = utilities.RMS_plane(u_fluc_2d)
     
     rms_dict = {
         'rms_z' : rms_time
     }
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
+    
     if DNS_case=='RE2500':
-        rms_fname = adr_loc + "\\rms_z_true.mat"
+        rms_fname = METRICS_DIR / "rms_z_true_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\rms_z_true_RE1000.mat"
+        rms_fname = METRICS_DIR / "rms_z_true_RE1000.mat"
 
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
@@ -1937,16 +1898,14 @@ def calc_RMS_profile_true(DNS_case, vel_planes, dimT, addr=''):
     return rms_time
 
 
-#done-ish, edit filename
+#done
 def get_RMS_profile_true(DNS_case, vel_planes):
     '''function to load the vertical profile of the planar RMS velocities (which is calculated once per case)'''
     
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    
     if DNS_case=='RE2500':
-        rms_fname = adr_loc + "\\rms_z_true.mat"
+        rms_fname = METRICS_DIR / "rms_z_true_RE2500.mat"
     else:
-        rms_fname = adr_loc + "\\rms_z_true_RE1000.mat"
+        rms_fname = METRICS_DIR / "rms_z_true_RE1000.mat"
     with h5py.File(rms_fname, 'r') as rms_dict:
         RMS_time = np.array(rms_dict['rms_z'])
     RMS_z_full = np.mean(RMS_time,axis=1)
@@ -1958,8 +1917,8 @@ def get_RMS_profile_true(DNS_case, vel_planes):
     return RMS_z
 
 
-#done-ish, edit filename
-def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles, addr=''):
+#done
+def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles):
     '''num_exp_ens: number of experimental ensembles to load'''
     case = utilities.case_name_converter(case)
 
@@ -1971,7 +1930,7 @@ def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles
         plane = planes[vel_planes[i]-1]
 
 
-        u = utilities.read_exp_plane(case=case,depth=plane,variable='U0', addr=addr)
+        u = utilities.read_exp_plane(case=case,depth=plane,variable='U0')
         u = u - np.mean(u, axis=3, keepdims=True)
 
         for j in range(num_experimental_ensembles):
@@ -1982,20 +1941,18 @@ def calc_RMS_profile_true_exp(vel_planes, dimT, case, num_experimental_ensembles
         'rms_z' : rms_time
     }
 
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\rms_z_true_Tee_" + case +".mat"
+    
+    rms_fname = METRICS_DIR / "rms_z_true_Tee_" + case +".mat"
     with h5py.File(rms_fname, 'w') as f:
         for key, value in rms_dict.items():
             f.create_dataset(key, data=value)
     return rms_time
         
 
-#done-ish, edit filename
+#done
 def get_RMS_profile_true_exp(case, experimental_ens, experimental_ens_avg=False):
     '''function to load the vertical profile of the planar RMS velocities (which is calculated once per case)'''
-
-    adr_loc = "C:\\Users\krissmoe\OneDrive - NTNU\PhD\PhD code\PhD-1\Flow Reconstruction and SHRED\MAT_files"
-    rms_fname = adr_loc + "\\rms_z_true_Tee_" + case +".mat"
+    rms_fname = METRICS_DIR / "rms_z_true_Tee_" + case +".mat"
 
     with h5py.File(rms_fname, 'r') as rms_dict:
         RMS_time = np.array(rms_dict['rms_z'])
