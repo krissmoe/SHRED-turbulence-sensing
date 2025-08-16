@@ -472,7 +472,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags
                 'test_indices' : test_indices,
             }
             
-            adr_loc = utilities.addr_string(addr, 'output/SHRED/')
+            adr_loc = utilities.fname_generator_string(addr, 'output/SHRED/')
         
             
             if full_planes:
@@ -686,7 +686,7 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
             }
             
             
-            adr_loc = utilities.addr_string(addr, 'output/SHRED/')
+            adr_loc = utilities.fname_generator_string(addr, 'output/SHRED/')
             if random_sampling:
                 SHRED_fname = adr_loc + "Teetank_SHRED_new_ens"+ str(experiment_ens) + "_"+ case + "_" + exp_plane + "_r"+ str(r) +"_" +str(num_sensors) +"sensors_ens" + str(p) +".mat"
             else:

@@ -7,6 +7,9 @@ import mat73
 from lvpyio import read_set
 from skimage.filters import window
 from pathlib import Path
+from pathlib import Path
+from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR, METRICS_DIR
+
 
 
 '''---------------------------------------------------------------------------------------------------------------------------------'''
@@ -14,7 +17,7 @@ from pathlib import Path
 '''DATA LOADING AND HANDLING FROM DNS AND 'T-TANK' EXPERIMENTS'''
 
 
-#done-ish, edit filename
+#done
 def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196, dimY=225, dimT = 900,variable='U0',surface=False, addr=''):
     '''Function to load experimental PIV data from the 'T-tank' turbulent watertank experiment from Davis dataset to MAT-file
     returns MAT-file with velocity field of shape (ens, dimY, dimX, dimT)'''
@@ -34,8 +37,9 @@ def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196
                     u_plane[ens,:,:,j] = image_frame[0][variable]
     case = case[1:]
     depth=depth[1:]
-    #tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat"
-    fname = addr + 'data/exp/raw/case_'+case+"_"+depth+"_"+variable+".mat" 
+
+    
+    fname = addr + EXP_RAW_DIR / 'case_'+case+"_"+depth+"_"+variable+".mat" 
     PIV_dict = {
         'U': u_plane,
     }
@@ -46,10 +50,10 @@ def write_T_tank_PIV_to_mat(case='\P25',depth='\H395',num_ensembles=20, dimX=196
     #sp.io.savemat(svd_fname, svd_dict)
     print("DONE!")
 
-#done-ish, edit filename
+#done
 def write_T_tank_surf_to_mat(surf_data, case, depth):
-    #tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\case_"+case+"_"+depth+"_"+variable+".mat" 
-    tee_fname = "E:\\Users\krissmoe\Documents\PhD data storage\T-Tank\Eta_case_"+case+"_"+depth+".mat" 
+
+    tee_fname = EXP_RAW_DIR / "Eta_case_"+case+"_"+depth+".mat" 
     tee_dict = {
         'eta': surf_data,
     }
@@ -60,8 +64,9 @@ def write_T_tank_surf_to_mat(surf_data, case, depth):
     #sp.io.savemat(svd_fname, svd_dict)
     print("DONE!")
 
-
+#done
 def open_T_tank_profilometry(addr):
+    '''Opens T-tank profilometry from original binary files'''
     # If address is not provided, ask the user to provide a file path
     if addr is None:
         from tkinter import filedialog
@@ -90,20 +95,31 @@ def open_T_tank_profilometry(addr):
 
 #done
 def read_exp_plane(case='P25',depth='H390',variable='U0',addr=''):
+    '''reads PIV velocity planes of the experimental data
+    parameters:
+    
+    case: 
+        'P25' or 'P50'
+    depth:
+        name of the velocity plane to read
+    variable:
+        set to U0 as default, reading velocity
+    addr:
+        insert local address if file is located in a different folder 
+        than the default structure
+    '''
     if addr=='':
-        fname = 'data/exp/raw/case_'+case+"_"+depth+"_"+variable+".mat" 
+        fname = EXP_RAW_DIR / 'case_'+case+"_"+depth+"_"+variable+".mat" 
     else:
         fname = addr + "case_"+case+"_"+depth+"_"+variable+".mat" 
     
     with h5py.File(fname, 'r') as exp:
-        # List all datasets in the file
-        #print("Keys in the HDF5 file:", list(tee.keys()))
 
         U = np.array(exp['U'])
     return U
 
 #done
-def read_exp_surface(case='P25', depth='H390', addr=''):
+def get_surface_exp(case='P25', depth='H390', addr=''):
     if addr=='':
         fname = 'data/exp/raw/Eta_case_'+case+"_"+depth + ".mat" 
     else:
@@ -117,19 +133,19 @@ def read_exp_surface(case='P25', depth='H390', addr=''):
     return surf_fluc
 
 
-#done-ish, edit filename
+#done
 def get_surface_DNS(DNS_case, addr=''):
     if DNS_case=='RE2500':
         if addr=='':
-            fname = "data//DNS/raw/RE2500/surfElev.mat"
+            fname = DNS_RAW_DIR / "RE2500/surf_elev_RE2500.mat"
         else:
-            fname = addr + "surfElev.mat"
+            fname = addr + "surf_elev_RE2500.mat"
     else:
 
         if addr=='':
-            fname = "data//DNS/raw/RE1000/surf_elev.mat"
+            fname = DNS_RAW_DIR /"RE1000/surf_elev_RE1000.mat"
         else:     
-            fname = addr + "surf_elev.mat"
+            fname = addr + "surf_elev_RE1000.mat"
     data = mat73.loadmat(fname)
     if DNS_case=='RE2500':
         surf_full = data['surfElev']
@@ -174,7 +190,7 @@ def get_velocity_plane_DNS(DNS_case, plane, addr=''):
     
     if DNS_case == 'RE2500':
         if addr=='':
-            fname = "data//DNS/raw/RE2500/" + "u_layer"+str(plane)+".mat"
+            fname = DNS_RAW_DIR / "RE2500/" + "u_layer"+str(plane)+".mat"
         else:  
             fname = addr + "u_layer"+str(plane)+".mat"
         dimX = 256
@@ -182,7 +198,7 @@ def get_velocity_plane_DNS(DNS_case, plane, addr=''):
         dimT=12500
     else:
         if addr=='':
-            fname = "data//DNS/raw/RE1000/" + "u_layer"+str(plane)+".mat"
+            fname = DNS_RAW_DIR /"RE1000/" + "u_layer"+str(plane)+".mat"
         else:
             fname = addr + "u_layer"+str(plane)+".mat"
         dimX = 128
@@ -215,12 +231,13 @@ def get_surface_exp(case, plane, addr=''):
         with plane indicating plane index, ranging from 1 to 5'''
     depths = ['H395','H390', 'H375', 'H350', 'H300']
     depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
-    surf_fluc = read_exp_surface(case, depth, addr)
+    surf_fluc = get_surface_exp(case, depth, addr)
     return surf_fluc
 
 #done
 def get_dims_DNS(DNS_case):
-    '''get dimensions for DNS'''
+    '''get dimensions for DNS
+        hardcoded'''
     if DNS_case=='RE2500':
         dimX = 256
         dimY = 256
@@ -233,7 +250,8 @@ def get_dims_DNS(DNS_case):
 
 #done
 def get_dims_exp_vel():
-    '''get dimension for PIV fields for the experiment'''
+    '''get dimension for PIV fields for the experiment
+        hardcoded'''
     dimX = 225
     dimY = 196
     dimT = 900
@@ -261,9 +279,10 @@ def get_mesh_DNS(DNS_case):
 #done
 def get_mesh_exp(case='P50', depth='H390', addr=''):
     '''get the spatial mesh grid for the experiment'''
-    addr = addr_string(addr, "data/exp/raw/")
-    addr = addr + 'surfMesh_' + depth + '_' + case +'.mat'
-    meshes = mat73.loadmat(addr)
+    fname = 'surfMesh_' + depth + '_' + case +'.mat'
+    fname = fname_generator_string(addr, EXP_RAW_DIR, fname)
+    
+    meshes = mat73.loadmat(fname)
     #print(meshes)
     X_surf = meshes['xMesh']
     Y_surf = meshes['yMesh']
@@ -282,11 +301,11 @@ def get_mesh_exp(case='P50', depth='H390', addr=''):
 def get_zz_DNS(DNS_case, addr=''):
     '''get depth coordinate z for DNS'''
     
-    addr = addr_string(addr, 'data/DNS/raw/')
+    addr = fname_generator_string(addr, 'data/DNS/raw/')
     
     if DNS_case=='RE2500':
 
-        fname = addr + "zz.mat"
+        fname = addr + "zz_RE2500.mat"
     else:
         fname = addr + "zz_RE1000.mat"
     data = sio.loadmat(fname)
@@ -306,7 +325,7 @@ def get_zz_exp():
 def get_integral_length_scale(DNS_case, addr=''):
     '''reads the integral length scale from file'''
 
-    addr = addr_string(addr, 'data/DNS/raw/')
+    addr = fname_generator_string(addr, 'data/DNS/raw/')
     tscales_fname = addr + "TurbScales_" + DNS_case + ".mat"
     TurbScales = sp.io.loadmat(tscales_fname)
 
@@ -330,7 +349,7 @@ def get_normalized_z(z, z_norm, DNS_case, addr=''):
         '''
     
     #load file with scales:
-    addr = addr_string(addr, 'data/DNS/raw/')
+    addr = fname_generator_string(addr, 'data/DNS/raw/')
     tscales_fname = addr + "TurbScales_" + DNS_case + ".mat"
     TurbScales = sp.io.loadmat(tscales_fname)
 
@@ -594,7 +613,7 @@ def save_svd_full(surf_fluc, u_fluc, experimental_ens, exp_case, variable='U', f
         for i in range(len(planes)):
             plane_str = planes[i]
             u = read_exp_plane(case=exp_case,depth=plane_str,variable='U0')
-            surf_fluc = read_exp_surface(case=exp_case, depth=plane_str)
+            surf_fluc = get_surface_exp(case=exp_case, depth=plane_str)
             u_fluc = u - np.mean(u, axis=3, keepdims=True)
             del u
             u_fluc = u_fluc[experimental_ens-1]
@@ -754,9 +773,9 @@ def open_SVD(experimental_ens, vel_fluc=False, variable='u', exp=False, experime
         If `vel_fluc=True`, an additional `u_fluc` array is appended to the return tuple.
     """
     
-    adr_loc = addr_string(addr, "data/DNS/SVD" )
+    adr_loc = fname_generator_string(addr, "data/DNS/SVD" )
     if exp:
-        adr_loc = addr_string(addr, "data/exp/SVD" )
+        adr_loc = fname_generator_string(addr, "data/exp/SVD" )
                 
         svd_fname = adr_loc + "\T_tank SVD_plane_" + experimental_plane + "_ens"+ str(experimental_ens) + "_"+experimental_case + ".mat"
         if forecast:
@@ -938,7 +957,7 @@ def open_SHRED(exp_ens, case, rank, num_sensors, SHRED_ens, plane_list, DNS=True
         test_ground_truth: V Matrix for rank r-compressed test data
         test_indices: the indices in the full dataset where test data is extracted from'''
     
-    adr_loc = addr_string(addr, "output/SHRED" )
+    adr_loc = fname_generator_string(addr, "output/SHRED" )
     
     if DNS:
         if not full_planes:
@@ -1043,7 +1062,7 @@ def get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, V_tot_recons, V_tot_svd, t
     if no_input_u_fluc:
         if surface:
             print("load surface")
-            surf_fluc = read_exp_surface(case=exp_case, depth=plane)
+            surf_fluc = get_surface_exp(case=exp_case, depth=plane)
             u_fluc = surf_fluc[:,:,:,experimental_ens-1]
         else:
             print("load velocity field, plane " + plane)
@@ -1268,13 +1287,19 @@ def time_avg_RMS_ver2(RMS_data_true, RMS_data_recons):
 '''GENERAL UTILITY FUNCTIONS FOR OPERATIONS'''
 
 #done
-def addr_string(addr_old, addr_new):
-    '''changes address type from old to new'''
-    if addr_old=='':
-        addr = addr_new
+def fname_generator_string(addr_manual, addr_default, fname):
+    '''creates full address + filename for a file
+    addr_manual is whatever input is given
+    addr_default is the default path, used if addr_manual is empty
+    fname is the filename'''
+
+    if addr_manual=='':
+        
+        fname_full = addr_default + fname
     else:
-        addr = addr_old
-    return addr
+        
+        fname_full = addr_default / fname
+    return fname_full
 
 
 #done
