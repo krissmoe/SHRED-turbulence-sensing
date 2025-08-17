@@ -7,13 +7,13 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import cycler
 from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR, METRICS_DIR, PLOTS_DIR
-#test
+
 
 '''Below are plotter functions needed to reproduce figures. These are called upon in the main Jupyter Notebook file'''
 
 
 '''Plotter for Fig. 3'''
-#DONE
+
 def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
     '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
      
@@ -41,14 +41,14 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
     dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
 
     #get SVD matrices from pre-calculated saved file:
-    U, S, V = utilities.open_SVD(experimental_ens=None, vel_fluc=False, variable='u', Teetank=False, teetank_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
+    U, S, V = utilities.open_SVD(experimental_ens=None, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
                                DNS_surf=False, DNS_case=DNS_case, experimental_plane='H390')
     
     #get all singular values
     S_tot = utilities.get_singular_values_full(DNS_case, plane)
     
     #calculate PSD spectrum, to extract wavenumbers for binning
-    spectra_ground_truth, k_bins = processdata.calculate_psd(u_fluc, dx=1.0, dy=1.0)
+    spectra_ground_truth, k_bins = processdata.calculate_psd_1d(u_fluc, dx=1.0, dy=1.0)
     
     psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
     psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
@@ -61,7 +61,7 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
 
 
 '''Plotter for Fig. 4'''
-#DONE
+
 def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
     '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
      
@@ -118,7 +118,7 @@ def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensem
 
 
 '''Helper-function for Figs. 3-4'''
-#DONE
+
 def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins, labels = None, nx=256, ny=256, nt=12500, rank=100, name="surf"):
     """
     Visualize spatial/temporal SVD modes together with singular values and
@@ -252,9 +252,8 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
         #label = labels[i] if labels else f"PSD {i + 1}"
         label = f"r = {labels[i]}" if labels else f"PSD {i + 1}"
         plt.loglog(k_bins, psd_multi[i,:], label=label)
-        #print(psd_multi[i,:])
-    #ax2.set_xlim(10,10000)
-    
+
+
     ax2.set_ylim(1e-8, 3)
     ax2.set_xlabel("$k L_{\infty}$", fontsize=13)
     ax2.set_ylabel("Normalized Power Spectral Density")
@@ -284,7 +283,7 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
 
 '''Plotter for Fig. 6'''
-#DONE
+
 def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_snap_index, lags=52, forecast=False, add_surface=False, full_planes=True, DNS_case='S2'):
     """
     Create side-by-side image comparisons of ground truth, SVD truncation,
@@ -378,7 +377,7 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
                 ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=min_val, vmax=max_val)
                 ax.axis('off')
 
-            filename = PLOTS_DIR / "DNS_compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
+            filename = PLOTS_DIR / ("DNS_compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png")
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -429,7 +428,7 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
                 ax.imshow(snapshot,  cmap='RdBu_r', interpolation='bilinear', vmin=min_val, vmax=max_val)
                 ax.axis('off')
 
-            filename = adr_loc_3 + "compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png"
+            filename = PLOTS_DIR / ("compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png")
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -462,13 +461,13 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
                 ax.axis('off')
 
     plt.show()
-    filename = adr_loc_3 + "compare_recon_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
-    fig.savefig(adr_loc_3 + "compare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) + ".pdf", format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
+    filename = PLOTS_DIR / ("compare_recon_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
     plt.close()
 
 
 '''Plotter for Fig 7'''
-#DONE
+
 def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
                               num_sensors=3, lags=52, forecast=False, add_surface=False):
     """
@@ -564,7 +563,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                     ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
                     ax.axis('off')
 
-                filename = PLOTS_DIR / "exp_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+                filename = PLOTS_DIR / ("exp_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png")
                 plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
                 plt.show()
@@ -610,7 +609,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
         # plt.tight_layout()
         #plt.show()
 
-            filename = PLOTS_DIR / "exp_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png"
+            filename = PLOTS_DIR / ("exp_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png")
             plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
             plt.show()
@@ -649,14 +648,14 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                 #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
                 #ax.axis('off')
         plt.show()
-        filename = PLOTS_DIR / "exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)
+        filename = PLOTS_DIR / ("exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)+".eps")
         #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
-        fig.savefig(filename + ".eps", format='eps', bbox_inches='tight', pad_inches=0.5)
+        fig.savefig(filename, format='eps', bbox_inches='tight', pad_inches=0.5)
       
 
 
 '''Plotter for Fig. 8'''
-#DONE
+
 def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
     """
     Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
@@ -845,10 +844,8 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         ax.tick_params(axis='y', which='major', labelsize=16)
     #fig.tight_layout()
     plt.show() 
-    filename = PLOTS_DIR / "DNS_cases_rms_instantaneous"
-    filename2 = filename + ".png"
-    fig.savefig(filename2)
-    fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
+    filename = PLOTS_DIR / ("DNS_cases_rms_instantaneous.pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
 
@@ -919,8 +916,8 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     RMS_z2 = processdata.get_RMS_profile_true(DNS_case2, vel_planes_S2)
 
     #RMS for experimental cases E1 and E2 
-    RMS_exp_z1 = processdata.get_RMS_profile_true_exp(vel_planes_exp, exp_case1, None, experimental_ens_avg=True)
-    RMS_exp_z2 = processdata.get_RMS_profile_true_exp(vel_planes_exp, exp_case2, None, experimental_ens_avg=True)
+    RMS_exp_z1 = processdata.get_RMS_profile_true_exp(exp_case1, vel_planes_exp, experimental_ens_avg=True)
+    RMS_exp_z2 = processdata.get_RMS_profile_true_exp(exp_case2, vel_planes_exp,  experimental_ens_avg=True)
     RMS_exp_z1 = RMS_exp_z1[1:]
     RMS_exp_z2 = RMS_exp_z2[1:]
 
@@ -964,7 +961,7 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
 
 
 '''Helper functions for figure 9'''
-#DONE
+
 def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
     std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
@@ -1141,15 +1138,13 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     #fig.tight_layout()
     plt.show()
 
-    filename = PLOTS_DIR /  "DNS_cases_error_metrics"
-    filename2 = filename + ".png"
-    fig.savefig(filename2)
-    fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1)
+    filename = PLOTS_DIR / ( "DNS_cases_error_metrics.pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1)
     return fig, gs
 
 
 '''Plotter for Fig. 10'''
-#DONE
+
 def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimental_ensembles, metric='rms'):
     """
     Compare per-snapshot error metrics for four flow cases
@@ -1284,15 +1279,14 @@ def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimen
     fig.tight_layout()
     plt.show()
 
-    filename = PLOTS_DIR / "time_series_error_metrics_"+metric 
-    filename2 = filename + ".png"
-    fig.savefig(filename2)
-    fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
+    filename = PLOTS_DIR / ("time_series_error_metrics_"+metric +".pdf")
+
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
 
 '''Plotter for Fig. 11'''
-#DONE
+
 def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
     """
     Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
@@ -1386,7 +1380,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     stack_planes=[vel_planes[0]] 
     plane = vel_planes[0]
     integral_length_scale=utilities.get_integral_length_scale('RE1000')
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
+    U_tot_red, S_tot_red, V_tot_red = utilities.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
   
     #then iterate SHRED ensembles
     V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
@@ -1408,7 +1402,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     
     stack_planes=[vel_planes[1]] 
     plane = vel_planes[1]
-    U_tot_red, S_tot_red, V_tot_red = processdata.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
+    U_tot_red, S_tot_red, V_tot_red = utilities.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
     
     #then iterate SHRED ensembles
 
@@ -1502,15 +1496,13 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     fig.tight_layout()
     plt.show()
      
-    filename = PLOTS_DIR / "psd_compare"
-    filename2 = filename + ".png"
-    fig.savefig(filename2)
-    fig.savefig(filename+".pdf", format='pdf', bbox_inches='tight', pad_inches=0.1) 
+    filename = PLOTS_DIR / "psd_compare.pdf"
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
 
 
 
 '''Plotter for Fig. 12'''
-#DONE
+
 def plot_psd_rank_comparison_with_SHRED(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
     '''produces Fig 12 in Appendix A
     
@@ -1553,7 +1545,7 @@ def plot_psd_rank_comparison_with_SHRED(r_vals, case, DNS, vel_planes, plane_ind
 
 
 '''Helper-function for Fig. 12'''
-#DONE
+
 def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_rank=0, rank_list=None):
     """
     Plots PSD comparisons for reconstructed and compressed data along with ground truth.
@@ -1601,8 +1593,7 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_ra
                            bbox_to_anchor=(0.1, 0.1, 1, 1), bbox_transform=ax.transAxes)
         next(ax._get_lines.prop_cycler)['color']
         for i in range(start_idx, end_idx):
-            #print(start_idx, end_idx)
-            #print(i-start_idx, len(color_list))
+
             color = color_list[i-start_idx]#next(ax._get_lines.prop_cycler)['color']
             inset_x_axis = [k_bins[0]-0.01*k_bins[0], k_bins[1]+0.1*k_bins[1]]
             inset.plot(k_bins[:3], psd_recon[i, :3], linestyle='-', linewidth=1.5, color=color)
@@ -1666,7 +1657,8 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_ra
 
             
     # Save and display the plot
-    plt.savefig(PLOTS_DIR /"psd_comparison.pdf")#, format='eps', bbox_inches='tight', pad_inches=0.1)
+    fname = PLOTS_DIR /("psd_comparison.pdf")
+    plt.savefig(fname)#, format='eps', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
 
@@ -1691,12 +1683,12 @@ def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_
 
     for i in range(len(indices)):
         test_snap_index = indices[i]
-        fname = PLOTS_DIR / "DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png"
+        fname = PLOTS_DIR / ("DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png")
         filenames.append(fname) 
     utilities.create_GIF(filenames, gif_name)
 
 
-#DONE
+
 def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
     """
     Compare how average reconstruction error metrics changes when either the
@@ -1770,7 +1762,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
             total_ranks = 12500
         else:
             total_ranks=10900
-        s_energy, r_percentage = utilities.get_cumsum_svd(r_vals, total_ranks, DNS_case)
+        s_energy, r_percentage = utilities.get_cumsum_svd(r_vals, total_ranks, DNS_case, DNS_plane=1)
         var_str = 'rank'
         if singular_val_energy:
             var_vals = s_energy*100
@@ -1795,10 +1787,10 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.tick_params(axis='x', which='major', labelsize=13)
     plt.tick_params(axis='y', which='major', labelsize=13)
     #plt.ylabel('PSNR')
-    plt.savefig(PLOTS_DIR / var_str + "_analysis_DNS_"+DNS_case+".pdf")
+    plt.savefig(PLOTS_DIR / (var_str + "_analysis_DNS_"+DNS_case+".pdf"))
     plt.show()
 
-#DONE
+
 def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
     """
     Compare how average reconstruction error metrics changes when either the
@@ -1932,18 +1924,18 @@ def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, 
         # Adjust the layout so the plots do not overlap
         plt.tight_layout()
         if GIF_only:
-            adr = PLOTS_DIR /"DNS plot throwaway"
+            adr = PLOTS_DIR /("DNS plot throwaway" + DNS_case + str(i) + ".png")
         else:
-            adr = PLOTS_DIR / 'DNS plot results'
-        savestring = adr + DNS_case + str(i) +".png"
-        plt.savefig(savestring)
-        filenames_snaps.append(savestring)
+            adr = PLOTS_DIR / ('DNS plot results' + DNS_case + str(i) + ".png")
+
+        plt.savefig(adr)
+        filenames_snaps.append(adr)
         #plt.show()
 
-    gif_name = PLOTS_DIR / DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end)
+    gif_name = PLOTS_DIR / (DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end) +".gif")
     utilities.create_GIF(filenames_snaps, gif_name)
 
-
+#colors from the ghibli package
 ghibli_palettes = {
 	'MarnieLight1':cycler('color', ['#95918E','#AF9699','#80C7C9','#8EBBD2','#E3D1C3','#B3DDEB','#F3E8CC']),
 	'MarnieMedium1':cycler('color', ['#28231D','#5E2D30','#008E90','#1C77A3','#C5A387','#67B8D6','#E9D097']),
@@ -1978,22 +1970,3 @@ def set_palette(palette):
     
     plt.rcParams['axes.prop_cycle'] = ghibli_palettes[palette]
 
-
-def test_plot():
-    import numpy as np
-    set_palette('LaputaMedium')
-    x = np.linspace(-5,+5,101)
-    y1 = np.sin(x)
-    y2 = np.cos(x)
-    y3 = np.tan(x)
-    y4 = np.sinh(x)
-    y5 = np.cosh(x)
-    y6 = np.tanh(x)
-    y7 = np.exp(x)
-    plt.plot(x,y1,linewidth=1)
-    plt.plot(x,y2,linewidth=2)
-    plt.plot(x,y3,linewidth=3)
-    plt.plot(x,y4,linewidth=4)
-    plt.plot(x,y5,linewidth=5)
-    plt.plot(x,y6,linewidth=6)
-    plt.plot(x,y7,'o')
