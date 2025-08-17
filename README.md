@@ -15,7 +15,7 @@ infer subsurface turbulence velocity fields from 3 surface sensor points capturi
 We apply the SHallow REcurrent Decoder (SHRED), which combines an LSTM (temporal encoder) with a shallow decoder (spatial mapping). We train in a compressed SVD basis to ease the training while keeping the relevant turbulence. Figure below shows the general outline. 
 ![Figures/SHRED_architecture.png](Figures/SHRED_architecture.png)
 
-We input time series of surface elevation from three randomly placed surface sensor points into a two-layer LSTM. The LSTM encodes these input sequences into a latent representation of their temporal dynamics. This latent vector is then passed to a shallow decoder network (SDN), which maps it onto the velocity fields across depth. We do this in compressed space, by feeding into the SDN the compressed $\bV$ matrices of the SVD decomposition for the surface elevation and the subsurface velocity fields. These fields are used in training and validation not to learn the subsurface time dynamics but only to learn the mapping of the surface time dynamics onto the subsurface fields.
+We input time series of surface elevation from three randomly placed surface sensor points into a two-layer LSTM. The LSTM encodes these input sequences into a latent representation of their temporal dynamics. This latent vector is then passed to a shallow decoder network (SDN), which maps it onto the velocity fields across depth. We do this in compressed space, by feeding into the SDN the compressed V matrices of the SVD decomposition for the surface elevation and the subsurface velocity fields. These fields are used in training and validation not to learn the subsurface time dynamics but only to learn the mapping of the surface time dynamics onto the subsurface fields.
 
 
 
@@ -29,7 +29,9 @@ We quantify the reconstruction errors using five metrics:
 Details about the error metrics can be found in the manuscript. The functions that calculate these can be found in 'Processdata.py'. 
 
 ### Data 
-DNS cases S1/S2 and experimental T-Tank cases E1/E2. Details about the turbulence statistics can be found in the manuscript.  
+DNS cases S1/S2 and experimental T-Tank (Note: sometimes called Teetank internally in code) cases E1/E2. Details about the turbulence statistics can be found in the manuscript.  
+
+Note that the specific case names for S1, S2, E1 and E2 differ in the code. For the DNS data, it is based on the Reynolds number of the simulation. Case S1 = "RE1000", case S2 = "RE2500". For the experimental cases, the names are sometimes based on the mode setting on the nozzles for the turbulent injection flow in the T-tank. Case E1 = "P25" and case E2 = "P50". In any case, the second case is always the more turbulent data. Note that the Reynolds numbers for the experimental cases are significantly higher than for the DNS cases.
 
 ### Outputs
 Plots for manuscript are generated in 'Run turbulence sensing SHRED.ipynb'. This include plots for
@@ -46,8 +48,6 @@ Plots for manuscript are generated in 'Run turbulence sensing SHRED.ipynb'. This
 
 # Repository guide
 
-README.md
-
 ## Scripts
 #### main
 - Run turbulence sensing SHRED.ipynb — end-to-end demo + figure reproduction.
@@ -56,8 +56,7 @@ README.md
 - processdata.py — SHRED run wrappers, error metrics (RMS/NMSE/SSIM/PSNR/PSD-error), ensemble averaging, figure-data preparation.
 - plot_results.py — high-level plotting: multi-panel layouts, PSD panels with insets, depth profiles, etc.
 - utilities.py — data loaders for DNS/T-Tank, mesh/geometry helpers, SVD compute/load, reshaping utilities.
-- paths.py — ensures correct paths for each file saved/loaded
--  requirements.txt / environment.yml   — dependencies 
+- paths.py — ensures correct paths for each file saved/loaded 
 
 ## Folders
 
@@ -96,32 +95,29 @@ README.md
      └─ metrics/   # error metrics, summaries, plot
 
 ## Data & folder structure
-- Raw data (DNS / T-Tank) must be stored outside the repo. These can be found in the following DATAVIEW link [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: \data\DNS or \data\experiments, located relative to code folder
-- SVD decompositions for DNS and experimental planes are essential. These can be calculated from script. Once calculated, we assume a folder structure where these are saved in the folders: \data\DNS\SVD or \data\experiments\SVD, located relative to code folder
-- SHRED calculations are saved and stored in \output\SHRED, located relative to code folder
-- all error metrics are saved and stored in \output\error\, located relative to code folder
+- Raw data (DNS / T-Tank) are not included in the current repository, but can be found and downloaded from the following site [insert link]. Once dowloaded, we assume a folder structure where these are saved in the folders: /data/DNS/raw or /data/exp/raw, located relative to code folder
+- SVD decompositions for DNS and experimental planes are essential. These can be calculated from script. Once calculated, we assume a folder structure where these are saved in the folders: /data/DNS/SVD or /data/experiments/SVD, located relative to code folder
+- SHRED calculations are saved and stored in /output/SHRED, located relative to code folder
+- all error metrics are saved and stored in /output/metrics/, located relative to code folder
 
 
 # Quickstart overview
+1) Download data from [link] and store them in /data/DNS/raw/ and /data/exp/raw.
 
-1) Put precomputed artifacts into artifacts/ (or compute SVDs locally).
+2) Open Run turbulence sensing SHRED.ipynb and run all cells:
 
-2) Set the path variables (see above).
-
-3) Open Run turbulence sensing SHRED.ipynb and run all cells:
-
-4) Pre-processing:
+3) Pre-processing:
    - Once downloaded, load  DNS and experimental data from the folder: /data/DNS/raw or /data/exp/raw
    - Convert all data to same format, using .MAT files
    - Calculate (or load, if pre-saved) SVD for velocity fields and save to /data/DNS/SVD or /data/exp/SVD
 
-5) SVD mode decompositon
+4) SVD mode decompositon
    - Run plotter for SVD modes and turbulence spectrum
 
-6) Run SHRED
+5) Run SHRED
    - Run the main SHRED calculation program. Outputs (V matrix of compressed and reconstruction) are saved to folder /output/SHRED
 
-7) Post-SHRED analysis
+6) Post-SHRED analysis
    - Calculate depth-dependent error metrics (NMSE, PSDE, SSIM & PSNR) and u_RMS of ground truth and reconstruction, and save outputs to /output/metrics
    - Plot depth-dependend error metrics
    - Calculate and plot instantaneous vertical u_RMS profiles and save calculations to /output/metrics
