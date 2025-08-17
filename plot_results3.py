@@ -269,9 +269,9 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
     # Adjust layout to minimize whitespace
     plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1, hspace=0.1, wspace=0.2)
-
+    fname = PLOTS_DIR / (f"svd_spectra_{name}.pdf")
     # Save the figure
-    plt.savefig(f"svd_spectra_{name}.pdf", format="pdf", bbox_inches="tight", pad_inches=0.1)
+    plt.savefig(fname, format="pdf", bbox_inches="tight", pad_inches=0.1)
     plt.show()
 
 
@@ -1886,7 +1886,8 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
     plt.tick_params(axis='x', which='major', labelsize=13)
     plt.tick_params(axis='y', which='major', labelsize=13)
     #plt.ylabel('PSNR')
-    plt.savefig(var_str + "_analysis_teetank_"+case+".pdf")
+    fname = PLOTS_DIR / (var_str + "_analysis_T_tank_"+case+".pdf")
+    plt.savefig(fname)
     plt.show()
 
 
