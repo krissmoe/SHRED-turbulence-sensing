@@ -3,7 +3,7 @@ Mapping surface height dynamics to flow physics in free-surface turbulent flow u
 
 Code and notebooks for SHRED (SHallow REcurrent Decoder) applied to free-surface turbulence: reconstructing subsurface velocity fields from sparse surface-height sensors, with comparisons across DNS and laboratory (T-Tank) data.
 
-📄 This repo accompanies:
+This repo accompanies:
 “Mapping surface height dynamics to subsurface flow physics in free-surface turbulent flow using a shallow recurrent decoder” (in submission).
 Preprint: link • Archived code snapshot (Zenodo DOI): to be added
 
