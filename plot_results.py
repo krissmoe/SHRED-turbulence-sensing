@@ -1,0 +1,1973 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import utilities3 as utilities
+import cmocean
+import processdata3 as processdata
+from matplotlib.gridspec import GridSpec
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib import cycler
+from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR, METRICS_DIR, PLOTS_DIR
+
+
+'''Below are plotter functions needed to reproduce figures. These are called upon in the main Jupyter Notebook file'''
+
+
+'''Plotter for Fig. 3'''
+
+def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
+    '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
+     
+    Parameters
+    ----------
+    DNS_case : str
+        DNS case identifier (e.g. "S1", "S2").
+    plane : int
+        Horizontal plane index (between 1-57 for S1, 1-76 for S2).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
+
+    Returns
+        None '''
+
+    
+    DNS_case = utilities.case_name_converter(DNS_case)
+
+    #extract raw velocity field
+    u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
+    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+
+    #get SVD matrices from pre-calculated saved file:
+    U, S, V = utilities.open_SVD(experimental_ens=None, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
+                               DNS_surf=False, DNS_case=DNS_case, experimental_plane='H390')
+    
+    #get all singular values
+    S_tot = utilities.get_singular_values_full(DNS_case, plane)
+    
+    #calculate PSD spectrum, to extract wavenumbers for binning
+    spectra_ground_truth, k_bins = processdata.calculate_psd_1d(u_fluc, dx=1.0, dy=1.0)
+    
+    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
+    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
+
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens=1, plane=plane)
+
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
+    plot_svd_and_spectra(U, np.transpose(V), S_tot, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=1000, name="surf")
+
+
+'''Plotter for Fig. 4'''
+
+def plot_svd_and_spectra_exp(exp_case,plane, rank_list, mode_list, labels, ensembles):
+    '''Loads and plots SVD modes and spectra for a specific plane of the experimental data
+     
+    Parameters
+    ----------
+    exp_case : str
+        Experiment identifier (e.g. "E1", "E2").
+    plane : int
+        Horizontal plane index (1 = H395, 2 = H390, ...).
+    rank_list : list[int]
+        Sequence of SVD truncation ranks to compare.
+    mode_list : list[int]
+        Indices of singular modes to visualise (0‑based).
+    labels : list[str]
+        Legend labels for the different rank reconstructions.
+    ensembles : list[int]
+        List of ensemble IDs to load; the first entry is used
+        for raw‐field visualisation.
+
+    Returns
+        None '''
+
+
+    exp_case = utilities.case_name_converter(exp_case)
+    
+    #extract raw velocity field
+    u_fluc = utilities.get_velocity_plane_exp(exp_case, plane)
+    ensemble = ensembles[0]
+    
+    dimX, dimY, dimT = utilities.get_dims_exp_vel()
+    depths = ['H395', 'H390', 'H375', 'H350', 'H300']
+    depth=depths[plane-1] #plane=1 is H395, plane=2 is H390 etc
+    
+    #open pre-calculated SVD matrices
+    #NOTE: here we separate between matrices for velocity 'u' and surface elevation 'eta' due to difference in geometry/size
+        #but time dynamics of same sampling and length, so the V matrices are stacked together
+        #V_tot: matrix with horizontally stacked V matrices from eta (surface elevation field) and u (velocity field of chosen plane) respectively
+    U_tot_u, S_tot_u, U_tot_surf, S_tot_surf, V_tot = utilities.open_SVD(ensemble, vel_fluc=False, variable='u', exp=True, experimental_case=exp_case, forecast=False, DNS_new=False, DNS_plane=None, DNS_surf=False, DNS_case=None, experimental_plane=depth)
+    
+    #exctract V matrix for velocity field, from the total stacked V matrix
+    V_tot_u = V_tot[:, 900:]
+
+    #calculate PSD spectrum, to extract wavenumbers for binning
+    spectra_ground_truth, k_bins = processdata.calculate_psd_1d(u_fluc[ensemble-1], dx=1e-3, dy=1e-3)
+
+    psd_multi_recon = np.zeros((len(rank_list), len(k_bins)))
+    psd_multi_compr = np.zeros((len(rank_list), len(k_bins)))
+
+    #calculate PSD spectrum for a range of rank values r given in the rank_list
+    psd_multi_recon, k_vals = processdata.calculate_PSD_r_vals_exp(u_fluc, rank_list, exp_case, ensembles, depth)
+
+    #plot U and V modes for given modes in mode_list, as well as singular values and spectra for different ranks 
+    plot_svd_and_spectra(U_tot_u, np.transpose(V_tot_u), S_tot_u, mode_list, psd_multi_recon, k_vals, labels = labels, nx=dimX, ny=dimY, nt=dimT, rank=900, name="surf")
+
+
+'''Helper-function for Figs. 3-4'''
+
+def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins, labels = None, nx=256, ny=256, nt=12500, rank=100, name="surf"):
+    """
+    Visualize spatial/temporal SVD modes together with singular values and
+    power–spectral‐density (PSD) curves.
+
+    A grid of subplots is created:
+
+    * **Rows 0–1:** spatial modes (chosen by ``mode_list``)  
+    * **Rows 2–3:** corresponding temporal coefficients  
+    * **Bottom row:** (i) normalized singular values and their cumulative
+      sum, (ii) PSD spectra for several SVD truncation ranks
+
+    The figure is saved as ``svd_spectra_<name>.pdf`` in the working
+    directory and displayed on screen.
+
+    Parameters
+    ----------
+    u_total : ndarray, shape (nx*ny, 2*rank) or (nx*ny, rank)
+        Matrix of left singular vectors (reshaped into spatial modes).
+    v_total : ndarray, shape (2*rank, nt) or (rank, nt)
+        Matrix of right singular vectors (temporal coefficients).
+    s_total : ndarray, shape (rank,)
+        Vector of singular values.
+    mode_list : list[int]
+        Indices of the singular modes to visualise (0‑based).
+    psd_multi : ndarray, shape (n_ranks, len(k_bins))
+        Pre‑computed PSD curves for different truncation ranks.
+    k_bins : ndarray
+        Wavenumber bins corresponding to ''psd_multi''.
+    labels : list[str] or None, optional
+        Legend labels for each PSD curve.  If *None*, generic labels
+        ``"PSD 1"``, ``"PSD 2"``… are used.
+    nx, ny : int, optional
+        Spatial grid dimensions used to reshape ``u_total``.  Default 256×256.
+    nt : int, optional
+        Number of time steps (x‑axis length for temporal plots).  Default 12 500.
+    rank : int, optional
+        Truncation rank that separates surface and velocity blocks in
+        ``u_total`` / ``v_total`` when ``name != "surf"``.  Default 100.
+    name : {"surf", "vel"}, optional
+        Selects which half of the SVD matrices is plotted.  Determines the
+        filename suffix.  Default ``"surf"``.
+
+    Returns
+    -------
+    None
+        The function produces a Matplotlib figure as a side‑effect and saves
+        it to disk.
+
+    Notes
+    -----
+    * Assumes spatial modes are stored column‑wise: the first ``rank``
+      columns correspond to surface (if ``name=="surf"``), the next
+      ``rank`` columns to velocity.
+    """
+    
+
+    # Set color palette and LaTeX rendering
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes['MononokeMedium']
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.sans-serif": "Helvetica",
+    })
+
+    # Decide which dataset to use
+    if name== "surf":
+        spatial_modes = u_total[:,:rank].reshape(nx,ny,rank)
+        temporal_modes = v_total[:rank,:]
+    else:
+        spatial_modes = u_total[:, rank:2*rank].reshape(nx, ny, rank)
+        temporal_modes = v_total[rank:2*rank, :]
+
+    # Parameters for the figure
+    time = np.linspace(0, nt, nt)
+    nrows = 5
+    ncolumns = 4
+    #selected_indices = [0, 1, 2, 10, 25, 50, 100, 250]
+    selected_indices = mode_list
+    # Create the figure with flexible bottom row
+    fig = plt.figure(figsize=(8, 10))
+    from matplotlib.gridspec import GridSpec
+    gs = GridSpec(nrows, ncolumns, height_ratios=[0.7, 0.7, 0.4, 0.4, 1.2], figure=fig)
+
+    # Plot spatial modes in rows 0 and 1
+    for i, idx in enumerate(selected_indices):
+        row = i // ncolumns  # Row index
+        col = i % ncolumns  # Column index
+        ax = fig.add_subplot(gs[row, col])
+        ax.imshow(spatial_modes[:, :, idx], cmap='RdBu_r', interpolation='bilinear')
+        ax.set_aspect('equal')  # Square aspect
+        ax.axis('off')  # Remove axis
+
+    # Plot temporal dynamics in rows 2 and 3
+    ymin, ymax = np.min(temporal_modes[selected_indices]), np.max(temporal_modes[selected_indices])
+    for i, idx in enumerate(selected_indices):
+        row = 2 + (i // ncolumns)  # Temporal dynamics start at row 2
+        col = i % ncolumns
+        ax = fig.add_subplot(gs[row, col])
+        ax.plot(time, temporal_modes[idx, :], color='black', linewidth=0.75)
+        ax.set_xlim(0, nt)
+        ax.set_ylim(ymin, ymax)
+        if col == 0:  # Add ticks only for the first column
+            ax.tick_params(axis='y', which='both', direction='out', length=3)
+            ax.locator_params(axis='y', nbins=4)
+        else:
+            ax.yaxis.set_visible(False)
+        if row == 3:  # Add x-axis ticks only for the last row
+            ax.tick_params(axis='x', which='both', direction='out', length=3)
+            ax.locator_params(axis='x', nbins=4)
+        else:
+            ax.xaxis.set_visible(False)
+
+    # Bottom row: Log-log plots of singular values and power spectral density
+    ax1 = fig.add_axes([0.05, 0.1, 0.4, 0.24])  # [left, bottom, width, height]
+    ax2 = fig.add_axes([0.55, 0.1, 0.4, 0.24])  # Adjust left to create a gap
+    
+    # Plot s_total
+    ax1.semilogy(s_total[:len(s_total)-10]/s_total[0],label="Normalized Singular values") # second row, since we look at velocity here
+   
+    ax1.semilogy(np.cumsum(s_total[:len(s_total)-10] / sum(s_total)), label="Cumulative Sum", linestyle='--', color='#CD4F38')  # second row, since we look at velocity here
+    ax1.set_xlabel('Rank')
+    ax1.legend()
+    #ax1.set_ylim(1e-3, 3)
+    ax1.grid(True, which="both", linestyle="--", linewidth=0.3)
+    # ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
+    # ax1.set_ylabel("Normalized Singular Values")
+    # Plot PSD results
+    
+    for i in range(psd_multi.shape[0]):
+        #label = labels[i] if labels else f"PSD {i + 1}"
+        label = f"r = {labels[i]}" if labels else f"PSD {i + 1}"
+        plt.loglog(k_bins, psd_multi[i,:], label=label)
+
+
+    ax2.set_ylim(1e-8, 3)
+    ax2.set_xlabel("$k L_{\infty}$", fontsize=13)
+    ax2.set_ylabel("Normalized Power Spectral Density")
+    ax2.legend()
+    ax2.grid(True, which="both", linestyle="--", linewidth=0.3)
+
+    # Add k^-5/3 slope
+    k_slope = k_bins[(k_bins > 0) & (k_bins < np.max(k_bins))]
+    slope = k_slope ** (-5 / 3)
+    slope *= 6*psd_multi[0, 0] / slope[0]  # Use the second value to avoid zero-index issues
+    ax2.loglog(k_slope, slope, 'k--', label='$k^{-5/3}$')
+
+
+    # Adjust layout to minimize whitespace
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.1, hspace=0.1, wspace=0.2)
+    fname = PLOTS_DIR / (f"svd_spectra_{name}.pdf")
+    # Save the figure
+    plt.savefig(fname, format="pdf", bbox_inches="tight", pad_inches=0.1)
+    plt.show()
+
+
+
+'''----------------------------------------------------------------------------------------------------------------------'''
+
+'''PLOTTING SHRED RESULTS'''
+
+
+
+'''Plotter for Fig. 6'''
+
+def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_snap_index, lags=52, forecast=False, add_surface=False, full_planes=True, DNS_case='S2'):
+    """
+    Create side-by-side image comparisons of ground truth, SVD truncation,
+    and SHRED reconstruction for selected DNS planes (and optionally the
+    free surface), then save the figures to disk. If more than 2 velocity planes, 
+    the comparisons are plotted one by one. Else, we combine them in one figure.
+
+    Parameters
+    ----------
+    rank : int
+        Truncation rank used for both SVD and SHRED reconstruction.
+    SHRED_ens : int
+        SHRED ensemble index (seed) used when loading saved `.mat` files.
+    vel_planes : list[int]
+        DNS velocity-plane indices to visualise.
+    num_sensors : int
+        Number of surface sensors present in the SHRED input (used only
+        for filename construction).
+    test_snap_index : int
+        Time index of the snapshot to display from the test set.
+    lags : int, default 52
+        LSTM sequence length used when SHRED was trained (needed for
+        correct indexing in the test set).
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED results; otherwise reconstruction.
+    add_surface : bool, default False
+        If *True*, plot an additional figure for the surface elevation.
+    full_planes : bool, default True
+        If *True*, SHRED was trained on **all** planes; otherwise only the
+        subset in ``vel_planes`` (affects plane indexing).
+    DNS_case : {"S1", "S2"}, default "S2"
+        DNS dataset identifier.
+
+    Returns
+    -------
+    None
+        Generates and saves PNG figures; no data are returned.
+
+    Notes
+    -----
+    * Assumes SHRED outputs are stored in `.mat` files located in
+      `adr_loc_3` with naming convention used in
+      :pyfunc:`utilities.open_SHRED`.
+    * Figure filenames follow
+      ``compare_recon_<DNS_case>_plane<plane>_rank<r>_DNS_ens<SHRED_ens>.png``..
+    """
+    
+    DNS_case = utilities.case_name_converter(DNS_case)
+
+    #set location folder for plots
+    #TODO: change address
+    
+    
+    if DNS_case=='RE2500':
+        tot_num_planes=76
+    else:
+        tot_num_planes=57
+
+    #create mesh
+    XX,YY = utilities.get_mesh_DNS(DNS_case)
+
+    #get SHRED V matrices
+    V_test_recons, V_test_ground_truth, V_test_indices = utilities.open_SHRED(None, DNS_case, rank, num_sensors, SHRED_ens, vel_planes, DNS=True, full_planes=full_planes, forecast=forecast)
+
+    #get surface elevation
+    all_rows = []
+    
+    if add_surface:
+        plane=0 #correct plane number for surface elevation 
+        plane_index=0
+        surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, np.zeros(1), V_test_recons, V_test_indices, rank,
+                                                                                                num_sensors, lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
+        del u_fluc2
+
+        #extract specific snapshot
+        surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+        surf_svd = surf_svd_test[:, :, test_snap_index]
+        surf_recons = surf_recons_test[:, :, test_snap_index]
+        row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
+        all_rows.append(row1)
+        
+        if len(vel_planes) >= 3:
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+            for j, snapshot in enumerate(row1):
+                ax = axs[j]
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+            
+                ax.imshow(snapshot,  cmap=cmocean.cm.ice, interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+
+            filename = PLOTS_DIR / ("DNS_compare_recon_SURF_ELEV_"+DNS_case+"_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png")
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
+    
+    #iterate and plot velocity planes
+    for i in range(len(vel_planes)):
+        print("plane ", vel_planes[i])
+        plane = vel_planes[i]
+        if full_planes and len(vel_planes) < tot_num_planes:
+            plane_index = vel_planes[i]
+        else:
+            plane_index = i+1 #shift with 1 to compensate for surface elevation when loading V matrices
+        #construct raw fields
+        u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
+        
+        print("getting test images")
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_test_recons, V_test_indices, rank,
+                                                                                            num_sensors, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
+        del u_fluc2
+        print("test images extracted")
+        #construct SVD fields
+        u_fluc_test = u_fluc_test[:,:,test_snap_index]
+        u_svd = u_svd_test[:, :, test_snap_index]
+
+        #construct SHRED reconstruction fields
+        
+        u_recons = u_recons_test[:, :, test_snap_index]
+
+        #all_rows_1 = []
+        row = [u_fluc_test, u_svd, u_recons]  # Second row
+        #all_rows_1.append(row)
+
+        if len(vel_planes) < 3:
+            all_rows.append(row)
+
+        # Plot each snapshot in the grid
+        if len(vel_planes) >= 3:
+        
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        
+            for j, snapshot in enumerate(row):
+                #colour_levels = np.linspace(-u_scale,u_scale, 500)
+                ax = axs[j]
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+                ax.imshow(snapshot,  cmap='RdBu_r', interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+
+            filename = PLOTS_DIR / ("compare_recon_"+DNS_case+"_plane" + str(plane) + "_rank"+str(rank)+ "_DNS_ens" + str(SHRED_ens) +".png")
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
+            plt.close()
+
+
+
+    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
+    #plot for paper
+    if len(vel_planes) < 3:
+        spacing = 0.1
+        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
+        ax1 = axs[0,0]
+        ax2 = axs[0,1]
+        ax3 = axs[0,2]
+        ax1.set_title("Ground truth")
+        ax2.set_title("Compressed")
+        ax3.set_title("Reconstruction")
+        for k, row in enumerate(all_rows):
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+
+                ax = axs[k,j]
+             
+                ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                
+                ax.axis('off')
+
+    plt.show()
+    filename = PLOTS_DIR / ("compare_recon_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.5, transparent=False, dpi=150)
+    plt.close()
+
+
+'''Plotter for Fig 7'''
+
+def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
+                              num_sensors=3, lags=52, forecast=False, add_surface=False):
+    """
+    Plot ground-truth, rank-r SVD, and SHRED-reconstructed snapshots of
+    T-tank experimental data for the chosen velocity planes (and
+    optionally the surface), then save the figures.
+
+
+    Parameters
+    ----------
+    rank : int
+        SVD truncation rank used for SHRED and comparison plots.
+    exp_case : {"E1", "E2"}
+        Experimental case identifier (converted internally to "E1"/"E2").
+    experimental_ens : int
+        Experimental ensemble index to read SVD data from.
+    SHRED_ens : int
+        SHRED ensemble seed used when saving reconstructions.
+    plane_list : list[int]
+        Indices (1-based: 1 = H395, 2 = H390, …) of velocity planes to plot.
+    test_snap_index : int
+        Snapshot index within the test set to visualise.
+    u_fluc, surf_fluc : ndarray or None
+        Optional pre-loaded velocity / surface time series.  If *None*,
+        data are loaded internally.
+    num_sensors : int, default 3
+        Number of surface sensors used in SHRED (filename bookkeeping).
+    lags : int, default 52
+        LSTM sequence length used in training; required for correct
+        indexing when extracting test snapshots.
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED reconstructions.
+    add_surface : bool, default False
+        Plot an additional figure for surface elevation.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    * Assumes SHRED outputs are stored in `.mat` files and accessed via
+      :pyfunc:`utilities.open_SHRED`.
+    * Hard-coded output path `adr_loc_3`; adjust for other environments.
+    """
+
+    
+    exp_case = utilities.case_name_converter(exp_case)
+    
+    
+    
+    #iterate test snaps:
+    #filenames_snaps = []
+  
+    
+    for i in range(len(plane_list)):
+        
+        planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+        plane = planes[plane_list[i]-1]
+        print("plane: ", plane)
+        X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(exp_case, plane)
+        #plane_index = i+1
+        #construct raw fields
+
+        #get SHRED V matrices
+        test_recons, test_ground_truth, test_indices = utilities.open_SHRED(experimental_ens, exp_case, rank, num_sensors, 
+                                                                            SHRED_ens, plane_list, DNS=False, exp_plane=plane, full_planes=True, forecast=forecast)
+
+        #get surface elevation
+        all_rows = []
+        if add_surface:
+            #plane=0
+            #plane_index=0
+            surf_fluc_test, surf_svd_test, surf_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices,
+                                                                                                            X_surf, X_vel, experimental_ens, exp_case, rank, 
+                                                                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True,
+                                                                                                              lags=lags, forecast=forecast, surface=True, no_input_u_fluc=True)
+            del u_fluc2
+            surf_fluc_test = surf_fluc_test[:, :, test_snap_index]
+            surf_svd = surf_svd_test[:, :, test_snap_index]
+            surf_recons = surf_recons_test[:, :, test_snap_index]
+            row1 = [surf_fluc_test, surf_svd, surf_recons]  # First row
+            all_rows.append(row1)
+            if len(plane_list) >= 3:
+                spacing = 0.1
+                fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+                for j, snapshot in enumerate(row1):
+                    if j==0:
+                        min_val = np.min(snapshot)
+                        max_val = np.max(snapshot)
+              
+                    ax = axs[j]
+                    ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                    ax.axis('off')
+
+                filename = PLOTS_DIR / ("exp_compare_recon_SURF_ELEV_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png")
+                plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+                plt.show()
+    
+
+        print("getting test images")
+        u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, rank, 
+                                                            SHRED_ens, num_sensors, U_tot_red=None, S_tot_red=None, V_tot_red = None, open_svd=True, lags=lags, forecast=forecast, surface=False, no_input_u_fluc=True)
+        del u_fluc2
+        print("test images extracted")
+        #construct SVD fields
+        u_fluc_test = u_fluc_test[:,:,test_snap_index]
+        u_svd = u_svd_test[:, :, test_snap_index]
+
+        #construct SHRED reconstruction fields
+        
+        u_recons = u_recons_test[:, :, test_snap_index]
+
+        #all_rows_1 = []
+        row = [u_fluc_test, u_svd, u_recons]  # Second row
+        #all_rows_1.append(row)
+
+        if len(plane_list) < 3:
+            all_rows.append(row)
+
+        # Plot each snapshot in the grid
+        if len(plane_list) >= 3:
+            spacing = 0.1
+            fig, axs = plt.subplots(1, 3, figsize=(15, 5),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+            
+        
+                ax = axs[j]
+                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+
+
+        # Adjust layout and display the plot
+        # plt.tight_layout()
+        #plt.show()
+
+            filename = PLOTS_DIR / ("exp_compare_recon_u_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens) +".png")
+            plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
+        
+            plt.show()
+            plt.close()
+
+
+
+    #plot 3x3 subplots with surface elevation, surface velocity and bulk velocity
+    #plot for paper
+    if len(plane_list) < 3:
+        spacing = 0.1
+        fig, axs = plt.subplots(len(all_rows), 3, figsize=(15, 5*len(all_rows)),  gridspec_kw={'wspace': spacing, 'hspace': spacing})
+        cmaps = [cmocean.cm.ice,'RdBu_r','RdBu_r'] # Alternative colors for velocity: cm.thermal, cm. balance
+        
+        for k, row in enumerate(all_rows):
+            for j, snapshot in enumerate(row):
+                if j==0:
+                    min_val = np.min(snapshot)
+                    max_val = np.max(snapshot)
+
+
+
+                ax = axs[k,j]
+                #contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmaps[k])
+                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                ax.axis('off')
+                #ax.axis('square')
+                #my_ticks = np.arange(-0.75,0.75,0.15)
+                #cb = plt.colorbar(ticks=my_ticks)
+                #ax1.tick_params(axis='both', labelsize=16)
+                #cb.set_label(label='u [m/s]', fontsize=16)
+                #fig.colorbar(contour1, ax=ax1, ticks=my_ticks, label="u' [m/s]")
+
+
+                #ax = axs[k, j]
+                #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
+                #ax.axis('off')
+        plt.show()
+        filename = PLOTS_DIR / ("exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)+".eps")
+        #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
+        fig.savefig(filename, format='eps', bbox_inches='tight', pad_inches=0.5)
+      
+
+
+'''Plotter for Fig. 8'''
+
+def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap_indices_DNS, snap_indices_exp, ranks, num_sensors, colors, labels, z_norm='int'):
+    """
+    Visualise *instantaneous* root-mean-square (RMS) vertical profiles for
+    four flow cases – two DNS (S1/S2) and two experimental (E1/E2) – and
+    compare ground truth against SHRED reconstructions.
+
+    A 4 × 3 panel figure is created:
+
+    ==========================  =========================================
+    Row                          Cases plotted (left → right)
+    --------------------------  -----------------------------------------
+    0 (top)                     S1 (RE1000) snapshots *i = 0,1,2*
+    1                            S2 (RE2500) snapshots *i = 0,1,2*
+    2                           E1 (P25)    snapshots *i = 0,1,2*
+    3 (bottom)                  E2 (P50)    snapshots *i = 0,1,2*
+    ==========================  =========================================
+
+    Each subplot shows:
+
+    * Solid line – ground-truth RMS profile at snapshot *i*
+    * Dashed line – SHRED-reconstructed RMS profile
+    * Depth axis optionally normalised (``z_norm``)
+
+    The final figure is saved both as PNG and PDF.
+
+    Parameters
+    ----------
+    experimental_ens : int
+        Experimental ensemble index used to load SVD/RMS data.
+    SHRED_ens_DNS : int
+        SHRED ensemble seed for DNS cases.
+    SHRED_ens_exp : int
+        SHRED ensemble seed for experimental cases.
+    snap_indices_DNS : list[int]
+        Three snapshot indices to plot for S1 and S2.
+    snap_indices_exp : list[int]
+        Three snapshot indices to plot for E1 and E2.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks (unused here but reserved for future use).
+    num_sensors : int
+        Number of surface sensors (used only in filename bookkeeping).
+    colors : tuple[str, str, str, str]
+        Line colours for S1, S2, E1, E2 (in that order).
+    labels : tuple[tuple[str, str], ...]
+        Label pairs ``(ground_truth_label, recon_label)`` per snapshot.
+    z_norm : {"int", "taylor", "mixed", None}, default "int"
+        Normalisation for the vertical axis:
+        * ``"int"``  →  integral length scale  
+        * ``"taylor"`` → Taylor microscale  
+        * ``"mixed"``  →  √(Lλ L∞)  
+        * ``None``     →  raw grid index
+
+    Returns
+    -------
+    None
+        Produces a Matplotlib figure and writes files:
+
+        * ``.../Results/DNS_cases_rms_instantaneous.png``
+        * ``.../Results/DNS_cases_rms_instantaneous.pdf``
+
+    Notes
+    -----
+    * Requires pre-computed `.mat` files created by
+      ``processdata.open_instantaneous_rms_profile(_exp)``.
+    """
+
+    rms_gt_S1, rms_recons_S1 = processdata.open_instantaneous_rms_profile('RE1000', SHRED_ens_DNS)
+    rms_gt_S2, rms_recons_S2 = processdata.open_instantaneous_rms_profile('RE2500', SHRED_ens_DNS)
+    rms_gt_E1, rms_recons_E1 = processdata.open_instantaneous_rms_profile_exp('P25', experimental_ens, SHRED_ens_exp)
+    rms_gt_E2, rms_recons_E2 = processdata.open_instantaneous_rms_profile_exp('P50', experimental_ens, SHRED_ens_exp)
+    
+    #choose snap indices
+    rms_gt_S1 = rms_gt_S1[:, snap_indices_DNS]
+    rms_recons_S1 = rms_recons_S1[:,snap_indices_DNS]
+
+    rms_gt_S2= rms_gt_S2[:,snap_indices_DNS]
+    rms_recons_S2 = rms_recons_S2[:,snap_indices_DNS]
+
+    rms_gt_E1 = rms_gt_E1[:, snap_indices_exp]
+    rms_recons_E1 = rms_recons_E1[:,snap_indices_exp]
+
+    rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
+    rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
+    
+    #plot
+    z_S1 = utilities.get_zz_DNS('RE1000')
+    z_S2 = utilities.get_zz_DNS('RE2500')
+    z_S1 = utilities.get_normalized_z(z_S1, z_norm, 'RE1000')
+    z_S2 = utilities.get_normalized_z(z_S2, z_norm, 'RE2500')
+
+    z_exp = utilities.get_zz_exp()
+    z_E1 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P25')
+    z_E2 = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case='P50')
+
+    
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+    })
+    
+    fig = plt.figure(figsize=(15, 20))
+    gs = GridSpec(4, 3, figure=fig, hspace=0.25, wspace=0.1)
+    
+
+
+    labels1=['Ground Truth, Re=1000', 'Recons, Re=1000']
+    #make z_label:
+    if z_norm=='taylor':
+        z_label='$z/L_{\lambda}$'
+    elif z_norm == 'int':
+        z_label='$z/L_{\infty}$'
+    elif z_norm=='mixed':
+        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
+    else:
+        z_label = None
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[0, 2])
+
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax5= fig.add_subplot(gs[1, 1])
+    ax6 = fig.add_subplot(gs[1, 2])
+
+    ax7 = fig.add_subplot(gs[2, 0])
+    ax8= fig.add_subplot(gs[2, 1])
+    ax9 = fig.add_subplot(gs[2, 2])
+
+    ax10 = fig.add_subplot(gs[3, 0])
+    ax11= fig.add_subplot(gs[3, 1])
+    ax12 = fig.add_subplot(gs[3, 2])
+    
+    axes = [[ax1, ax2, ax3], [ax4, ax5, ax6], [ax7, ax8, ax9], [ax10, ax11, ax12]]
+
+    for i in range(len(snap_indices_DNS)):
+        #Row 1: RMS for u and w
+        print(i)
+        ax_S1 = axes[0][i]
+        ax_S1.plot(rms_recons_S1[:,i], z_S1, linestyle='--', color=colors[0], label=labels[i][1])
+        ax_S1.plot(rms_gt_S1[:,i], z_S1, linestyle='-', color=colors[0], label=labels[i][0])
+
+        ax_S2 = axes[1][i]
+        ax_S2.plot(rms_recons_S2[:,i], z_S2, linestyle='--', color=colors[1], label=labels[i][1])
+        ax_S2.plot(rms_gt_S2[:,i], z_S2, linestyle='-', color=colors[1], label=labels[i][0])
+
+        ax_E1 = axes[2][i]
+        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
+        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
+
+        ax_E2 = axes[3][i]
+        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
+        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
+        
+        ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=18)
+        ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=18)
+        ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=18)
+        ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=18)
+
+        ax_S1.set_xlim((0.06,0.21))
+        ax_S2.set_xlim((0.055,0.19))
+        ax_E1.set_xlim((0.65,2.3))
+        ax_E2.set_xlim((0.3,2.8))
+        ax_E1.set_ylim((-2.0, 0.001))
+        ax_E2.set_ylim((-1.5, 0.001))
+        if i>0:
+            ax_S1.set_yticklabels([])
+            ax_S2.set_yticklabels([])
+            ax_E1.set_yticklabels([])
+            ax_E2.set_yticklabels([])
+        ax_S1.grid()
+        ax_S2.grid()
+        ax_E1.grid()
+        ax_E2.grid()
+        if i==0:
+            ax_S1.legend(fontsize=14)
+            ax_S2.legend(fontsize=14)
+            ax_E1.legend(fontsize=14)
+            ax_E2.legend(fontsize=14)
+
+    ax1.set_ylabel(z_label, fontsize=18)
+    ax4.set_ylabel(z_label, fontsize=18)
+    ax7.set_ylabel(z_label, fontsize=18)
+    ax10.set_ylabel(z_label, fontsize=18)
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12]:
+        ax.tick_params(axis='x', which='major', labelsize=16)
+        #if ax==ax1 or ax==ax4 or ax==ax7 or ax==ax10:
+        ax.tick_params(axis='y', which='major', labelsize=16)
+    #fig.tight_layout()
+    plt.show() 
+    filename = PLOTS_DIR / ("DNS_cases_rms_instantaneous.pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
+
+
+
+'''Plotter for Fig 9'''
+def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None):
+    """
+    Build the “four-case” figure that compares depth-dependent SHRED
+    reconstruction metrics for
+
+    * DNS case S1 (`DNS_cases[0]`)
+    * DNS case S2 (`DNS_cases[1]`)
+    * Experimental case E1 (`exp_cases[0]`)
+    * Experimental case E2 (`exp_cases[1]`)
+
+
+    Parameters
+    ----------
+    DNS_cases : tuple[str, str]
+        Identifiers for the two DNS datasets, e.g. ``(S1, S2)``.
+    exp_cases : tuple[str, str]
+        Identifiers for the two experimental datasets, e.g. ``(E1, E2)``.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks used for S1, S2, E1, E2 (in that order).
+    colors : tuple[str, str, str, str]
+        Line colours for the four cases when plotting.
+    vel_planes1, vel_planes2 : list[int]
+        Velocity-plane indices used in S1 and S2 metric calculations.
+    vel_planes_exp : list[int]
+        Velocity-plane indices common to both experimental cases.
+    num_sensors : int
+        Number of surface sensors in all SHRED runs.
+    SHRED_ensembl_S1, SHRED_ensembles_S2 : list[int]
+        SHRED ensemble seeds for S1 and S2.
+    SHRED_ensembles_E1, SHRED_ensembles_E2 : list[int]
+        SHRED ensemble seeds for E1 and E2.
+    exp_ensembles_E1, exp_ensembles_E2 : list[int]
+        Teetank ensemble indices providing experimental SVDs.
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED outputs.
+    full_planes : bool, default True
+        If *True*, DNS SHRED models were trained on all planes.
+    full_planes_exp : bool, default False
+        If *True*, experimental SHRED models used all planes; otherwise
+        just ``vel_planes_exp``.
+    z_norm : {"int", "depth", None}, optional
+        Normalisation for the vertical axis: integral length scale,
+        physical depth, or *None* (raw index).
+
+    Returns
+    -------
+    None
+        Generates a Matplotlib figure (via
+        :pyfunc:`plot_error_metrics_four_cases`) but does not return data.
+
+
+    """
+
+    #get necessary profiles of RMS and depth values
+    DNS_case1 = utilities.case_name_converter(DNS_cases[0])
+    DNS_case2 = utilities.case_name_converter(DNS_cases[1])
+    exp_case1 = utilities.case_name_converter(exp_cases[0])
+    exp_case2 = utilities.case_name_converter(exp_cases[1])
+
+    
+    #RMS for DNS cases S1 and S2
+    #requires these have been calculated by 'calc_RMS_profile_true()' and stored as mat files
+    RMS_z1 = processdata.get_RMS_profile_true(DNS_case1, vel_planes_S1) #returns RMS_profile with only chosen planes
+    RMS_z2 = processdata.get_RMS_profile_true(DNS_case2, vel_planes_S2)
+
+    #RMS for experimental cases E1 and E2 
+    RMS_exp_z1 = processdata.get_RMS_profile_true_exp(exp_case1, vel_planes_exp, experimental_ens_avg=True)
+    RMS_exp_z2 = processdata.get_RMS_profile_true_exp(exp_case2, vel_planes_exp,  experimental_ens_avg=True)
+    RMS_exp_z1 = RMS_exp_z1[1:]
+    RMS_exp_z2 = RMS_exp_z2[1:]
+
+    #get vertical axis
+    z1 = utilities.get_zz_DNS(DNS_case1)
+    z2 = utilities.get_zz_DNS(DNS_case2)
+    z_exp = utilities.get_zz_exp()
+
+    #normalize vertical axis with a length scale set by 'z_norm' (for Fig. 9 in paper: 'int' for turbulent integral length scale)
+    z1 = utilities.get_normalized_z(z1, z_norm, DNS_case1)
+    z2 = utilities.get_normalized_z(z2, z_norm, DNS_case2)
+    z1_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case1)
+    z2_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case2)
+    z1_exp = z1_exp[1:]
+    z2_exp = z2_exp[1:]
+
+
+    #exctract ensemble-averaged error metrics
+    RMS_recons_avg_1, RMS_true_avg, mse_avg_1, ssim_avg_1, psnr_avg_1, psd_avg_1, std_RMS_recons_1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case1,
+        ranks[0], vel_planes_S1, num_sensors, SHRED_ensembles_S1, forecast=forecast, full_planes=full_planes)
+    
+    RMS_recons_avg_2, RMS_true_avg, mse_avg_2, ssim_avg_2, psnr_avg_2, psd_avg_2, std_RMS_recons_2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case2,
+        ranks[1], vel_planes_S2, num_sensors, SHRED_ensembles_S2, forecast=forecast, full_planes=full_planes)
+    
+
+    #extract ensemble-avg error metrics from experiments
+    RMS_recons_avg_exp1, RMS_true_avg_exp1, mse_avg_exp1, ssim_avg_exp1, psnr_avg_exp1, psd_avg_exp1, std_RMS_recons_exp1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case1, 
+        ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, forecast=False, full_planes=full_planes_exp)
+
+    RMS_recons_avg_exp2, RMS_true_avg_exp2, mse_avg_exp2, ssim_avg_exp2, psnr_avg_exp2, psd_avg_exp2, std_RMS_recons_exp2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
+        ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, forecast=False, full_planes=full_planes_exp)
+
+    std_RMS_recons_exp1=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp1 # np.zeros(5)
+    std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2
+
+    #the plotter for all four cases S1, S2, E1, E2, all together
+    plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, colors,
+    z1, z2, z1_exp, z2_exp, RMS_z1, RMS_z2, RMS_exp_z1, RMS_exp_z2, RMS_recons_avg_1, RMS_recons_avg_2, RMS_recons_avg_exp1, RMS_recons_avg_exp2, 
+    std_RMS_recons_1, std_RMS_recons_2, std_RMS_recons_exp1, std_RMS_recons_exp2, mse_avg_1, mse_avg_2, mse_avg_exp1, mse_avg_exp2, psd_avg_1, psd_avg_2, psd_avg_exp1, psd_avg_exp2, 
+    ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm)
+
+
+'''Helper functions for figure 9'''
+
+def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
+    depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
+    std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
+    ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None
+):
+
+    """
+    Plots depth-dependent error metrics in an 8-panel layout.
+
+    Parameters:
+        depth: array-like, depth values (z-axis, positive downward).
+        rms_u_gt, rms_u_recon: RMS of u-velocity for ground truth and reconstruction.
+        rms_w_gt, rms_w_recon: RMS of w-velocity for ground truth and reconstruction (can be None).
+        rms_vort_x_gt, rms_vort_x_recon: RMS vorticity (x-component) for ground truth and reconstruction (can be None).
+        rms_vort_z_gt, rms_vort_z_recon: RMS vorticity (z-component) for ground truth and reconstruction (can be None).
+        nmse_data: Normalized Mean Squared Error.
+        psd_data: Power Spectral Density Error.
+        ssim_data: Structural Similarity Index Measure.
+        psnr_data: Peak Signal-to-Noise Ratio.
+        std_xxx : standard deviation for the ensembled signals
+    """
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+    })
+
+    #make z_label:
+    if z_norm=='taylor':
+        z_label='$z/L_{\lambda}$'
+    elif z_norm == 'int':
+        z_label='$z/L_{\infty}$'
+    elif z_norm=='mixed':
+        z_label='$z/(L_{\lambda} L_{\infty})^{1/2}$'  
+    else:
+        z_label = None
+      
+    # Helper function for single-curve panels
+    def plot_single_curve(ax, data1, data2, data3, data4, depth1, depth2, depth3, depth4, err, label1, label2, label3, label4, xlabel, colors, xlim=False, z_label=None, z_tics=True):
+
+
+        if len(data1)>30:
+            marker1=None
+            ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
+            ax.plot(data2, depth2, linestyle='-', marker=marker1, color=colors[1], label=label2)
+            
+            #activate when using P25
+            ax.plot(data3, depth3, marker='o', color=colors[2], label=label3)
+            ax.plot(data4, depth4, marker='o', color=colors[3], label=label4)
+
+            #ax.fill_betweenx(depth, lower_bound, upper_bound,color=color_curve,alpha=0.2)
+            if z_label != None:
+                ax.set_ylabel(z_label, fontsize=22)
+        else:
+            marker1='o'
+            ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
+            ax.plot(data2, depth2, marker=marker1, color=colors[1], label=label2)
+            #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
+            #ax.errorbar(data1, depth1, xerr = err, linestyle='-', marker=marker1, label=label, capsize=3, errorevery=3)
+        
+        if z_tics:
+            ax.tick_params(axis='both', which='major', labelsize=16, length=10)
+        else:
+            #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
+            ax.tick_params(axis='y', which='both', labelsize=0, length=0)  # Hides ticks on y-axis
+            ax.tick_params(axis='x', which='major', labelsize=16, length=10)
+        
+        #ax.plot(data, depth, linestyle='-', marker='o', label=label)
+        #ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=15)
+        if xlim:
+            ax.set_xlim(0.0)
+        ax.legend(fontsize=16)
+        ax.grid()
+
+    # Helper function for two-curve panels
+    def plot_two_curves(ax, data1_truth, data1_recons, data2_truth, data2_recons, depth1, depth2,
+                         err1_recons, err2_recons,labels1, labels2, xlabel, colors, DNS=True, z_label=None, z_tics=True):
+
+        
+        lower_bound1 = data1_recons - err1_recons
+        upper_bound1 = data1_recons + err1_recons
+        lower_bound2 = data2_recons - err2_recons
+        upper_bound2 = data2_recons + err2_recons
+        
+        if DNS:
+            marker1=None
+            marker2=None
+            ax.plot(data1_recons, depth1, linestyle='dashdot', marker=marker2, color=colors[0], label=labels1[1])
+            ax.fill_betweenx(depth1, lower_bound1, upper_bound1,color=colors[0],alpha=0.2)
+            ax.plot(data1_truth, depth1, linestyle='-', marker=marker1, color=colors[0], label=labels1[0])
+            ax.plot(data2_recons, depth2, linestyle='dashdot', marker=marker2, color=colors[1], label=labels2[1])
+            ax.fill_betweenx(depth2, lower_bound2, upper_bound2,color=colors[1],alpha=0.2)
+            ax.plot(data2_truth, depth2, linestyle='-', marker=marker1, color=colors[1], label=labels2[0])
+            #ax.set_xlabel(r'(a) $\langle u_{\mathrm{RMS}}\rangle$, Cases S1 \& S2')
+            if z_label != None:
+                ax.set_ylabel(z_label, fontsize=21)
+
+        
+        else:
+
+            ax.plot(data1_truth, depth1, marker='D', color=colors[2], label=labels1[0])
+            ax.plot(data2_truth, depth2, marker='D', color=colors[3], label=labels2[0])
+            ax.errorbar(data1_recons, depth1, xerr = err1_recons, linestyle='dashdot', fmt='o', color=colors[2],label=labels1[1], capsize=2, errorevery=1)
+            ax.errorbar(data2_recons, depth2, xerr=err2_recons, linestyle='dashdot', fmt='o', color=colors[3],label=labels2[1], capsize=2, errorevery=1)
+            #ax.set_xlabel(r'(b) $\langle u_{\mathrm{RMS}}\rangle$, Cases E1 \& E2')
+            
+            if z_label != None:
+                ax.set_ylabel(z_label, fontsize=21)
+        if z_tics:
+            ax.tick_params(axis='both', which='major', labelsize=16, length=10)
+        else:
+            #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
+            ax.tick_params(axis='y', which='both', labelsize=0, length=0)  # Hides ticks on y-axis
+            ax.tick_params(axis='x', which='major', labelsize=16, length=10)
+        
+        ax.set_xlim(0.0)
+        ax.set_ylim(-2.8,0.05)
+        ax.grid()
+
+        #ax.errorbar(data2, depth, xerr = err2, linestyle='-', marker=marker1, label=labels[1], capsize=3, errorevery=1)
+    
+        #ax.plot(data1_truth, depth1, linestyle='--', marker=marker1, color=colors[0], label=labels1[0])
+        #ax.plot(data2_truth, depth2, linestyle='--', marker=marker1, color=colors[1], label=labels2[0])
+        
+       
+        #ax.invert_yaxis()
+        ax.set_xlabel(xlabel, fontsize=18)
+        ax.legend(fontsize=16)
+
+    # Create a figure and use GridSpec for layout
+    if fig==None:
+        fig = plt.figure(figsize=(14, 15))
+        plt.rcParams["text.usetex"]=True
+        gs = GridSpec(3, 2, figure=fig, hspace=0.3, wspace=0.1)
+    
+
+    # Row 1: u_RMS for S1 & S2 (left) and E1 & E2 (right)
+    ax1 = fig.add_subplot(gs[0, 0])
+    labels1=['Ground truth, S1', 'Recons, S2']
+    labels2=['Ground truth, S2', 'Recons, S2']
+    plot_two_curves(ax1, rms_u_gt_1, rms_u_recon_1, rms_u_gt_2, rms_u_recon_2, depth1, depth2, err1_recons=std_rms_u_1, err2_recons=std_rms_u_2,
+                     labels1=labels1, labels2=labels2, xlabel='(a) $<u_{RMS}>$, Cases S1 \& S2', colors=colors, DNS=True, z_label=z_label)
+
+
+    ax2 = fig.add_subplot(gs[0, 1])
+    labels3=['Ground truth, E1', 'Recons, E1']
+    labels4=['Ground truth, E2', 'Recons, E2']
+    
+    plot_two_curves(ax2, rms_u_gt_3, rms_u_recon_3, rms_u_gt_4, rms_u_recon_4, depth3, depth4, err1_recons=std_rms_u_3, err2_recons=std_rms_u_4,
+                     labels1=labels3, labels2=labels4, xlabel='(b) $<u_{RMS}>$, Cases E1 \& E2', colors=colors, DNS=False, z_label=None, z_tics=False)
+
+
+    # Row 2: NMSE (left) and PSD Error (right)
+    ax5 = fig.add_subplot(gs[1, 0])
+    case_S1 = 'S1'
+    case_S2 = 'S2'
+    case_E1= 'E1'
+    case_E2= 'E2'
+    #plot_single_curve(ax5, nmse_data_1, nmse_data_2, depth1, depth2, err=std_nmse, label1=DNS_case1, label2 =DNS_case2, xlabel='Normalized Mean Square Error', colors=colors, z_label=z_label)
+    plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label)
+    ax6 = fig.add_subplot(gs[1, 1])
+    plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False)
+
+    # Row 3: SSIM (left) and PSNR (right)
+    ax7 = fig.add_subplot(gs[2, 0])
+    plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,)
+
+    ax8 = fig.add_subplot(gs[2, 1])
+    plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False)
+
+    # Adjust layout
+
+   
+    #fig.tight_layout()
+    plt.show()
+
+    filename = PLOTS_DIR / ( "DNS_cases_error_metrics.pdf")
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1)
+    return fig, gs
+
+
+'''Plotter for Fig. 10'''
+
+def plot_time_series_error_metrics(ranks, vel_planes, SHRED_ensembles, experimental_ensembles, metric='rms'):
+    """
+    Compare per-snapshot error metrics for four flow cases
+    (DNS S1, DNS S2, experiment E1 and E2) and visualise them as a 2 × 2
+    panel of time-series plots.
+    
+    Parameters
+    ----------
+    ranks
+        Four-element list with the SVD truncation rank *r* used for each case
+        – order: ``[S1, S2, E1, E2]``.
+    vel_planes
+        Lists of horizontal plane indices for S1, S2, E1, E2.
+    SHRED_ensembles
+        Ensemble indices (list) for cases S1, S2, E1, E2.
+    experimental_ensembles
+        List of experimental ensemble numbers for cases E1 and E2
+        ``calculate_temporal_error_metrics_exp``.
+    metric : {'rms', 'mse', 'ssim', 'psnr', 'psd'}, default ``'rms'``
+        Which quantity to plot.  If ``'rms'`` the function also overlays the
+        reconstructed RMS (dashed blue) on the ground-truth RMS (black).
+
+    Returns
+    -------
+    None
+    * Saves files as  
+      ``time_series_error_metrics_<metric>.png`` and ``.pdf``.
+
+    """
+    RMS_true_S1, RMS_recons_S1, mse_snapshots_S1, ssim_snapshots_S1, psnr_snapshots_S1, psd_snapshots_S1= processdata.calculate_temporal_error_metrics('S1', ranks[0], vel_planes[0], 3, SHRED_ensembles[0], lags=52, forecast=False,  full_planes=True)
+    RMS_true_S2, RMS_recons_S2,mse_snapshots_S2, ssim_snapshots_S2, psnr_snapshots_S2, psd_snapshots_S2= processdata.calculate_temporal_error_metrics('S2', ranks[1], vel_planes[1], 3, SHRED_ensembles[1], lags=52, forecast=False,  full_planes=True)
+    RMS_true_E1, RMS_recons_E1,mse_snapshots_E1, ssim_snapshots_E1, psnr_snapshots_E1, psd_snapshots_E1 = processdata.calculate_temporal_error_metrics_exp('E1', ranks[2], None, vel_planes[2], 3, SHRED_ensembles[2], experimental_ensembles[0], lags=52, forecast=False, full_planes=True)
+    RMS_true_E2, RMS_recons_E2,mse_snapshots_E2, ssim_snapshots_E2, psnr_snapshots_E2, psd_snapshots_E2 = processdata.calculate_temporal_error_metrics_exp('E2', ranks[3], None, vel_planes[3], 3, SHRED_ensembles[3], experimental_ensembles[1], lags=52, forecast=False,  full_planes=True)
+    
+    test_snaps1=np.arange(0,len(mse_snapshots_S1))
+    test_snaps2=np.arange(0,len(mse_snapshots_S2))
+    test_snaps3= np.arange(0, len(mse_snapshots_E1))
+    test_snaps4=np.arange(0,len(mse_snapshots_E2))
+        
+    fig = plt.figure(figsize=(14, 10))
+    gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
+    
+    if metric=='rms':
+        ylabel = '$u_{RMS}$'
+        variable_S1 = RMS_true_S1
+        variable_S2 = RMS_true_S2
+        variable_E1 = RMS_true_E1
+        variable_E2 = RMS_true_E2
+
+        #calculating correlation of ground truth and reconstruction RMS
+        rms_corr_S1 = utilities.cross_correlation(RMS_true_S1,RMS_recons_S1)
+        rms_corr_S2 = utilities.cross_correlation(RMS_true_S2,RMS_recons_S2)
+        rms_corr_E1 = utilities.cross_correlation(RMS_true_E1,RMS_recons_E1)
+        rms_corr_E2 = utilities.cross_correlation(RMS_true_E2,RMS_recons_E2)
+
+        print("RMS correlations: \n" "S1:", rms_corr_S1, "\nS2:", rms_corr_S2, "\nE1:", rms_corr_E1, "\nE2:", rms_corr_E2)
+
+    elif metric=='mse':
+        ylabel = 'MSE'
+        variable_S1 = mse_snapshots_S1
+        variable_S2 = mse_snapshots_S2
+        variable_E1 = mse_snapshots_E1
+        variable_E2 = mse_snapshots_E2
+    elif metric=='ssim':
+        ylabel = 'SSIM'
+        variable_S1 = ssim_snapshots_S1
+        variable_S2 = ssim_snapshots_S2
+        variable_E1 = ssim_snapshots_E1
+        variable_E2 = ssim_snapshots_E2
+    elif metric=='psnr':
+        ylabel = 'PSNR'
+        variable_S1 = psnr_snapshots_S1
+        variable_S2 = psnr_snapshots_S2
+        variable_E1 = psnr_snapshots_E1
+        variable_E2 = psnr_snapshots_E2
+    elif metric=='psd':
+        ylabel = 'PSDE'
+        variable_S1 = psd_snapshots_S1
+        variable_S2 = psd_snapshots_S2
+        variable_E1 = psd_snapshots_E1
+        variable_E2 = psd_snapshots_E2
+    else:
+        print("This metric does not exist")
+    
+
+    # Row 1: RMS for u and w
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1], sharey=ax1)
+    ax3 = fig.add_subplot(gs[1,0])
+    ax4 = fig.add_subplot(gs[1,1], sharey=ax3)
+
+    
+    
+    if metric=='rms':
+        ax1.set_ylim(bottom=0.05, top=0.25)
+        ax2.set_ylim(bottom=0.05, top=0.25)
+        ax3.set_ylim(bottom=0.6, top=5.0)
+        ax4.set_ylim(bottom=0.6, top=5.0)
+        
+        ax1.plot(test_snaps1[200:600], RMS_recons_S1[200:600], linestyle='--', color='blue')
+        ax2.plot(test_snaps2[200:600], RMS_recons_S2[200:600], linestyle='--', color='blue')
+        ax3.plot(test_snaps3, RMS_recons_E1, linestyle='--', color='blue')
+        ax4.plot(test_snaps4, RMS_recons_E2, linestyle='--', color='blue')
+    
+    ax1.plot(test_snaps1[200:600], variable_S1[200:600], linestyle='-', color='k')
+    ax1.set_ylabel(ylabel, fontsize=18)
+    ax1.grid()
+
+
+    ax2.plot(test_snaps2[200:600], variable_S2[200:600], linestyle='-', color='k')
+    ax2.tick_params(left=False, labelleft=False)
+    ax2.grid()
+
+
+    ax3.plot(test_snaps3, variable_E1, linestyle='-', color='k')
+    ax3.set_ylabel(ylabel, fontsize=18)
+    ax3.grid()
+    ax3.set_xlabel('Test snapshot', fontsize=16)
+
+    ax4.plot(test_snaps4, variable_E2, linestyle='-', color='k')
+    ax4.grid()
+    ax4.set_xlabel('Test snapshot', fontsize=16)
+    ax4.tick_params(left=False, labelleft=False)    
+
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.tick_params(axis='x', which='major', labelsize=13)
+
+    # Apply to y-axis of ax1 and ax5
+    ax1.tick_params(axis='y', which='major', labelsize=13)
+    ax3.tick_params(axis='y', which='major', labelsize=13)  
+    
+    fig.tight_layout()
+    plt.show()
+
+    filename = PLOTS_DIR / ("time_series_error_metrics_"+metric +".pdf")
+
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
+
+
+
+'''Plotter for Fig. 11'''
+
+def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_vals, num_sensors):
+    """
+    Compare 1-D power–spectral-density (PSD) curves of **ground-truth**, **SVD-truncated**
+    and SHRED-reconstructed velocity fields for all cases
+
+    ----------
+    Parameters
+    ----------
+    vel_planes
+        Four-element list giving the integer plane IDs to use for
+        S1, S2, E1, E2 **in that order**.
+        For the experiments, 1→'H395', 2→'H390', … 5→'H300'.
+    SHRED_ensembles
+        List ``[ens_S1, ens_S2, ens_E1, ens_E2]`` selecting which SHRED run
+        (seed) to load for each case.
+    experimental_ensembles
+        Two-element list ``[ens_P25, ens_P50]`` selecting which experimental
+        realisation (run) to plot for E1 and E2.
+    r_vals
+        Rank used in the reduced SVD for each case
+        ``[r_S1, r_S2, r_E1, r_E2]``.
+    num_sensors
+        Number of surface sensors used in every SHRED run
+        (important for file naming).
+
+    Returns
+    -------
+    None
+        The function is for plotting only, with a 4 panel 
+        plot saved as a pdf.
+
+    """
+    
+
+    #plane name library for experiments
+    planes = ['H395', 'H390', 'H375', 'H350', 'H300']
+
+    ##case E1 (P25) --------------------
+        
+    plane = planes[vel_planes[2]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P25', plane)
+    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[0], 'P25', r_vals[2], num_sensors, SHRED_ensembles[2], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
+    #get SVDs correctly
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[0], 'P25', r_vals[2], forecast=False, DNS=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[0], 'P25', r_vals[2], 
+                                                                                                            SHRED_ensembles[2], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
+                                                                                                            surface=False,no_input_u_fluc=True)
+    gt_fft_E1, recon_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E1, k_vals_E1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E1=np.amax(gt_fft_E1)
+    gt_psd_E1 = gt_fft_E1/spectral_max_E1
+    recon_psd_E1 = recon_fft_E1/spectral_max_E1
+    svd_psd_E1 = svd_fft_E1/spectral_max_E1
+    integral_length_scale=0.051
+    k_vals_E1 = integral_length_scale*k_vals_E1
+    k_cutoff_E1 = k_vals_E1[7]
+    print("cutoff normalized wavenumber k for case E1: ", k_cutoff_E1)
+    
+
+    #case E2 (P50) ------------------------------
+
+    plane = planes[vel_planes[3]-1]
+    X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp('P50', plane)
+    #open SHRED for this plane-surface-pairing, Tee-ensemble and SHRED ensemble
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ensembles[1], 'P50', r_vals[3], num_sensors, SHRED_ensembles[3], [plane], DNS=False,  exp_plane=plane, full_planes=True, forecast=False)
+    
+    #get SVDs correctly
+    U_tot_u_red, S_tot_u_red, U_tot_surf_red, S_tot_surf_red, V_tot_red = utilities.open_and_reduce_SVD(experimental_ensembles[1], 'P50', r_vals[3], forecast=False, DNS=False, DNS_plane=None,
+                                                                                                                   DNS_surf=False, exp=True, plane=plane)
+    surf_fluc=None
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ensembles[1], 'P50', r_vals[3], 
+                                                                                                            SHRED_ensembles[3], num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red, open_svd=False, lags=52, forecast=False, 
+                                                                                                            surface=False,no_input_u_fluc=True)
+    gt_fft_E2, recon_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=False)
+    gt_fft, svd_fft_E2, k_vals_E2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=False)
+    spectral_max_E2=np.amax(gt_fft_E2)
+    gt_psd_E2 = gt_fft_E2/spectral_max_E2
+    recon_psd_E2 = recon_fft_E2/spectral_max_E2
+    svd_psd_E2 = svd_fft_E2/spectral_max_E2
+    integral_length_scale=0.068
+    k_vals_E2 = integral_length_scale*k_vals_E2
+    k_cutoff_E2 = k_vals_E2[7] 
+    print("cutoff normalized wavenumber k for case E2: ", k_cutoff_E2)
+    
+    #DNS case S1 (RE1000) ----------------------------------
+
+    stack_planes=[vel_planes[0]] 
+    plane = vel_planes[0]
+    integral_length_scale=utilities.get_integral_length_scale('RE1000')
+    U_tot_red, S_tot_red, V_tot_red = utilities.stack_svd_arrays_DNS(stack_planes, r_vals[0],  DNS_case='RE1000')                                                  
+  
+    #then iterate SHRED ensembles
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE1000', r_vals[0], num_sensors, SHRED_ensembles[0], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE1000', plane, 1, None, V_tot_recons, test_indices, r_vals[0], 
+                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
+                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
+    gt_fft_S1, recon_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE1000')
+    gt_fft, svd_fft_S1, k_vals_S1 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE1000')
+    spectral_max_S1=np.amax(gt_fft_S1)
+    gt_psd_S1 = gt_fft_S1/spectral_max_S1
+    recon_psd_S1 = recon_fft_S1/spectral_max_S1
+    svd_psd_S1 = svd_fft_S1/spectral_max_S1
+    k_vals_S1 = integral_length_scale*k_vals_S1
+    k_cutoff_S1 = k_vals_S1[13]
+    print("cutoff normalized wavenumber k for case S1: ", k_cutoff_S1)
+    
+    #DNS case S2 (RE2500) -----------------------------------
+    
+    stack_planes=[vel_planes[1]] 
+    plane = vel_planes[1]
+    U_tot_red, S_tot_red, V_tot_red = utilities.stack_svd_arrays_DNS(stack_planes, r_vals[1],  DNS_case='RE2500')                                                  
+    
+    #then iterate SHRED ensembles
+
+    V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(None, 'RE2500', r_vals[1], num_sensors, SHRED_ensembles[1], stack_planes, DNS=True, 
+                                                                     full_planes=True, forecast=False)
+ 
+    u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS('RE2500', plane, 1, None, V_tot_recons, test_indices, r_vals[1], 
+                                                                                                    num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=52, 
+                                                                                                    forecast=False, surface=False, no_input_u_fluc=True)
+    integral_length_scale=utilities.get_integral_length_scale('RE2500')
+    gt_fft_S2, recon_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case='RE2500')
+    gt_fft, svd_fft_S2, k_vals_S2 = processdata.power_spectral_density_compare(u_fluc_test, u_svd_test, 3, DNS=True, DNS_case='RE2500')
+    spectral_max_S2=np.amax(gt_fft_S2)
+    gt_psd_S2 = gt_fft_S2/spectral_max_S2
+    recon_psd_S2 = recon_fft_S2/spectral_max_S2
+    svd_psd_S2 = svd_fft_S2/spectral_max_S2
+    k_vals_S2 = integral_length_scale*k_vals_S2
+    k_cutoff_S2 = k_vals_S2[11]
+
+    print("cutoff normalized wavenumber k for case S2: ", k_cutoff_S2)
+
+    #Plot figures
+    fig = plt.figure(figsize=(14, 10))
+    gs = GridSpec(2, 2, figure=fig, hspace=0.2, wspace=0.1)
+    
+
+    # Row 1: RMS for u and w
+    ax1 = fig.add_subplot(gs[0, 0])
+    #ax1.plot(test_snaps1, mse_snapshots_RE1000, label='MSE S1')
+    #ax1.plot(test_snaps1, psd_snapshots_RE1000, label='PSD error S1')
+    #ax1.plot(test_snaps1, ssim_snapshots_RE1000, label='SSIM S1')
+    
+    #ax2.plot(test_snaps1, psnr_snapshots_RE1000, color='r', label='PSNR S1')
+    #ax2.tick_params(axis='y', labelcolor='r')
+    ax1.loglog(k_vals_S1, gt_psd_S1, linestyle='-', color='k', label='Ground truth')
+    ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='SHRED recons')
+    ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
+    ax1.set_ylabel('PSD', fontsize=15)
+    ax1.grid()
+    ax1.legend(fontsize=13)
+    ax1.set_ylim(1e-3, 3)
+    ax1.set_xlim(k_vals_S1[0], 11)
+    ax1.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.loglog(k_vals_S2, gt_psd_S2, linestyle='-', color='k', label='Ground truth')
+    ax2.loglog(k_vals_S2, svd_psd_S2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax2.loglog(k_vals_S2, recon_psd_S2, linestyle='--', color='blue', label='SHRED recons')
+    ax2.plot([k_cutoff_S2, k_cutoff_S2], [1e-3,3], linestyle='-', color='darkviolet')
+    #ax2.set_ylabel('PSD', fontsize=15)
+    ax2.grid()
+    ax2.legend(fontsize=13)
+    ax2.set_ylim(1e-3, 3)
+    ax2.set_xlim(k_vals_S2[0], 11)
+    ax2.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+
+
+    ax3 = fig.add_subplot(gs[1,0])
+    ax3.loglog(k_vals_E1, gt_psd_E1, linestyle='-', color='k', label='Ground truth')
+    ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='Compressed')
+    ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='SHRED recons')
+    ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
+    ax3.set_ylabel('PSD', fontsize=15)
+    ax3.grid()
+    ax3.legend(fontsize=13)
+    ax3.set_ylim(1e-3, 3)
+    ax3.set_xlim(k_vals_E1[0], 11)
+    ax3.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    ax4= fig.add_subplot(gs[1,1])
+    ax4.loglog(k_vals_E2, gt_psd_E2, linestyle='-', color='k', label='Ground truth')
+    ax4.loglog(k_vals_E2, svd_psd_E2, linestyle='dashdot', color='darkred', label='Compressed')
+    ax4.loglog(k_vals_E2, recon_psd_E2, linestyle='--', color='blue', label='SHRED recons')
+    ax4.plot([k_cutoff_E2, k_cutoff_E2], [1e-3,3], linestyle='-', color='darkviolet')
+    #ax4.set_ylabel('PSD', fontsize=15)
+    ax4.grid()
+    ax4.legend(fontsize=13)
+    ax4.set_ylim(1e-3, 3)
+    ax4.set_xlim(k_vals_E2[0], 11)
+    ax4.set_xlabel("$k L_{\infty}$", fontsize=15)
+
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.tick_params(axis='x', which='major', labelsize=13)
+        ax.tick_params(axis='y', which='major', labelsize=13)
+
+    ax2.tick_params(left=False, labelleft=False)
+    ax4.tick_params(left=False, labelleft=False)
+
+    fig.tight_layout()
+    plt.show()
+     
+    filename = PLOTS_DIR / "psd_compare.pdf"
+    fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1) 
+
+
+
+'''Plotter for Fig. 12'''
+
+def plot_psd_rank_comparison_with_SHRED(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens, split_rank):
+    '''produces Fig 12 in Appendix A
+    
+        plots PSD spectra for ground truth, as well as SVD compressed fields
+        and SHRED reconstructed fields, for a range of rank values.
+
+    Parameters
+    ----------
+    r_vals : array-like
+        SVD ranks to evaluate.
+    case : str
+        Flow case identifier (e.g., 'S1','S2','E1','E2').
+    DNS : bool
+        True for DNS data, False for experimental.
+    vel_planes : list
+        Available planes; `plane_index` selects which to plot.
+    plane_index : int
+        Index into `vel_planes` for the target plane.
+    num_sensors : int
+        Number of surface sensors used by SHRED.
+    SHRED_ens : int
+        SHRED ensemble index.
+    experimental_ens : int
+        Experimental ensemble index (ignored for DNS).
+    split_rank : int
+        Optional rank threshold to split curves between the two panels.
+
+    Returns
+    -------
+    None
+        Generates the comparison figure.
+    '''
+
+    case = utilities.case_name_converter(case)
+
+    psd_ground_truth, psd_compr, psd_recon, k_vals = processdata.calculate_psd_rank_dependence(r_vals, case, DNS, vel_planes, plane_index, num_sensors, SHRED_ens, experimental_ens)
+    
+    plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_vals, split_rank=split_rank, rank_list=r_vals)
+
+
+
+'''Helper-function for Fig. 12'''
+
+def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_rank=0, rank_list=None):
+    """
+    Plots PSD comparisons for reconstructed and compressed data along with ground truth.
+
+    Parameters:
+    ----------
+    psd_recon : numpy.ndarray
+        Array of PSDs from reconstructed data (shape: [n_psds, n_frequencies]).
+    psd_compr : numpy.ndarray
+        Array of PSDs from compressed data (shape: [n_psds, n_frequencies]).
+    psd_ground_truth : numpy.ndarray
+        Array of the ground truth PSD (shape: [n_frequencies]).
+    k_bins : numpy.ndarray
+        Array of wavenumber bins (shape: [n_frequencies]).
+    split_rank : cutoff rank for curves in left frame
+    """
+    # Color map and LaTeX properties
+    
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes['MononokeMedium']
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.sans-serif": "Helvetica",
+    })
+
+    # Sanity check for input consistency
+    assert psd_recon.shape == psd_compr.shape, "psd_recon and psd_compr must have the same shape"
+    assert psd_recon.shape[1] == len(k_bins), "k_bins length must match the number of frequencies"
+    n_psds = psd_recon.shape[0]
+
+    if split_rank:
+        split_idx = len([i for i in rank_list if i < split_rank])
+    else:
+        split_idx = n_psds // 2  # Index to split the data for two panels
+
+    # Create a figure with two subplots (panels)
+    fig, axs = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
+
+    # Define function to use for insets in the plots
+    def add_inset(ax, psd_recon, psd_compr, psd_ground_truth, k_bins, start_idx, end_idx, color_list, ymin):
+        """
+        Adds a zoomed-in inset to the given subplot.
+        """
+        inset = inset_axes(ax, width="45%", height="52%", loc='lower left',
+                           bbox_to_anchor=(0.1, 0.1, 1, 1), bbox_transform=ax.transAxes)
+        next(ax._get_lines.prop_cycler)['color']
+        for i in range(start_idx, end_idx):
+
+            color = color_list[i-start_idx]#next(ax._get_lines.prop_cycler)['color']
+            inset_x_axis = [k_bins[0]-0.01*k_bins[0], k_bins[1]+0.1*k_bins[1]]
+            inset.plot(k_bins[:3], psd_recon[i, :3], linestyle='-', linewidth=1.5, color=color)
+            inset.plot(k_bins[:3], psd_compr[i, :3], linestyle='--', marker='*', linewidth=1.5, color=color)
+        inset.plot(k_bins[:3], psd_ground_truth[:3], linestyle='-', linewidth=2, color='black')
+        inset.set_xlim(inset_x_axis[0], inset_x_axis[1])
+        inset.set_ylim(ymin, 1)
+        inset.set_xscale('log')
+        inset.set_yscale('log')
+        inset.tick_params(axis='both', which='both', labelsize=12)
+        inset.grid(True, which="both", linestyle="--", linewidth=0.3)
+
+    # Panel 1: First half of PSDs
+    next(axs[0]._get_lines.prop_cycler)['color'] # Skip first color
+    color_list = []
+    axs[0].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
+    for i in range(split_idx):
+        color = next(axs[0]._get_lines.prop_cycler)['color']
+        color_list.append(color)
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
+        axs[0].loglog(k_bins, psd_recon[i, :], label=label_recon, linestyle='-', linewidth=1.5, color=color)
+        axs[0].loglog(k_bins, psd_compr[i, :], label=label_compr, linestyle='--', marker='*',linewidth=1.5, color=color)
+
+
+    axs[0].set_ylim(1e-3, 1.01)
+    axs[0].set_xlim(k_bins[0], 11)
+    axs[0].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
+    axs[0].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[0].legend(fontsize=14, loc='upper right')
+    axs[0].grid(True, which="both", linestyle="--", linewidth=0.3)
+    axs[0].tick_params(axis='both', which='both', labelsize=13)
+        
+
+    # Add inset to the first panel
+    add_inset(axs[0], psd_recon, psd_compr, psd_ground_truth, k_bins, 0, split_idx, color_list, ymin=6e-1)
+
+    # Panel 2: Second half of PSDs
+    next(axs[1]._get_lines.prop_cycler)['color'] # Skip first color
+    color_list = []
+    
+    axs[1].loglog(k_bins, psd_ground_truth, label="Ground truth",linestyle='-', linewidth=2, color='black')
+    for i in range(split_idx, n_psds):
+        color = next(axs[1]._get_lines.prop_cycler)['color']
+        color_list.append(color)
+        label_recon = 'r=' + str(rank_list[i]) +", recons"
+        label_compr = 'r=' + str(rank_list[i]) +", compr"
+        axs[1].loglog(k_bins, psd_recon[i, :], label=label_recon,linestyle='-', linewidth=1.5, color=color)
+        axs[1].loglog(k_bins, psd_compr[i, :], label=label_compr,linestyle='--', marker='*', linewidth=1.5, color=color)
+
+    
+    axs[1].set_ylim(1e-3, 1.01)
+    axs[1].set_xlim(k_bins[0], 11)
+    axs[1].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
+    axs[1].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[1].legend(fontsize=14, loc='upper right')
+    axs[1].grid(True, which="both", linestyle="--", linewidth=0.3)
+    axs[1].tick_params(axis='both', which='both', labelsize=15)
+    # Add inset to the second panel
+    add_inset(axs[1], psd_recon, psd_compr, psd_ground_truth, k_bins, split_idx, n_psds, color_list, ymin=6e-1)
+
+            
+    # Save and display the plot
+    fname = PLOTS_DIR /("psd_comparison.pdf")
+    plt.savefig(fname)#, format='eps', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+
+"""-------------------------------------------------------------------------------------------------------------------------------------------------"""
+
+'''Plotters for video/gif visualization'''
+
+def loop_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500'):
+    
+    indices = np.arange(test_index_start, test_index_end+1)
+    
+    for i in range(len(indices)):
+        test_snap_index = indices[i]
+        plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_snap_index, surf_scale, u_scale, lags=52, forecast=False, add_surface=add_surface, full_planes=True, DNS_case=DNS_case)
+
+
+def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_start, test_index_end, surf_scale, u_scale, add_surface=False, full_planes=True, DNS_case='RE2500', gif_name='DNS GIF'):
+
+    indices = np.arange(test_index_start, test_index_end+1)
+    filenames = []
+    
+
+    for i in range(len(indices)):
+        test_snap_index = indices[i]
+        fname = PLOTS_DIR / ("DNScompare_recon_DNS_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".png")
+        filenames.append(fname) 
+    utilities.create_GIF(filenames, gif_name)
+
+
+
+def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
+    """
+    Compare how average reconstruction error metrics changes when either the
+    SVD‐rank r or the number of surface sensors is varied for a given DNS
+    case, and visualise the result in a single normalised line plot.
+
+    Parameters
+    ----------
+    DNS_case : {S1, S2}
+        Identifier string for the DNS data set 
+
+    r_vals : list[int]
+        List of SVD ranks that were used in the SHRED runs.  Only consulted
+        when r_analysis is True.
+
+    vel_planes : list[int]
+        Indices of the horizontal velocity planes whose SHRED error metrics
+        should be included in the depth-averaging.
+
+    sensor_vals : list[int]
+        List of sensor counts that were used when r_analysis is ``False``;
+        ignored otherwise.
+
+    optimal_var_val : int | float
+        Reference value (e.g. “best” rank) that will be emphasised with a
+        vertical dashed line in the plot.
+
+    SHRED_ensembles : list[int]
+        Indices of the SHRED training ensembles to be averaged over when
+        computing the error metrics.
+
+    full_planes : bool, default ``False``
+        If True the error for **all** DNS planes is loaded; otherwise only
+        the planes listed in *vel_planes* are considered.
+
+    r_analysis : bool, default ``True``
+        • True – vary r_vals while the number of sensors is fixed.  
+        • False – vary sensor_vals while r is fixed.
+
+    singular_val_energy : bool, default ``False``
+        When r_analysis is True and this flag is set, the x-axis is
+        converted from rank to cumulative SVD energy (%) before plotting.
+
+    comp_rate : bool, default ``False``
+        Alternative x-axis for r_analysis: percentage of total available SVD
+        modes that are retained.
+
+    Returns
+    -------
+    None
+        The function gives a plot:
+
+        * Normalises each metric to its own maximum and produces a Matplotlib
+          figure showing all four metrics versus either rank (or its proxy) or
+          sensor count.
+        * Saves the figure as ``"<var_str>_analysis_DNS_<DNS_case>.pdf"`` in the
+          working directory and displays it on screen.
+
+    """
+    
+    DNS_case = utilities.case_name_converter(DNS_case)
+    
+    #calculate average error vertically using all given planes in vel_planes, 
+    #for all rank values in r_vals
+    #it gives a list of avg error metric values corresponding to the r_vals ranks
+    mse_list, ssim_list, psnr_list, psd_list = processdata.calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=full_planes,r_analysis=r_analysis)
+        
+    if r_analysis:
+        var_vals = r_vals
+        if DNS_case=='RE2500':
+            total_ranks = 12500
+        else:
+            total_ranks=10900
+        s_energy, r_percentage = utilities.get_cumsum_svd(r_vals, total_ranks, DNS_case, DNS_plane=1)
+        var_str = 'rank'
+        if singular_val_energy:
+            var_vals = s_energy*100
+            var_str = "% SVD cumulative energy"
+        if comp_rate:
+            var_vals=r_percentage*100
+            var_str = "% Of total SVD ranks"
+    else:
+        var_vals = sensor_vals
+        var_str = 'sensors'
+        
+    
+    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
+    plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
+    plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
+    plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
+    plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    plt.grid()
+    plt.xlabel(var_str,fontsize='16')
+    #plt.ylabel('Normalized metric')
+    plt.legend(fontsize=13)
+    plt.tick_params(axis='x', which='major', labelsize=13)
+    plt.tick_params(axis='y', which='major', labelsize=13)
+    #plt.ylabel('PSNR')
+    plt.savefig(PLOTS_DIR / (var_str + "_analysis_DNS_"+DNS_case+".pdf"))
+    plt.show()
+
+
+def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
+    """
+    Compare how average reconstruction error metrics changes when either the
+    SVD‐rank r or the number of surface sensors is varied for a given experimental
+    case, and visualise the result in a single normalised line plot.
+
+    Parameters
+    ----------
+    case : {E1, E2}
+        Identifier string for the experimental data set 
+
+        
+    experimental_ensembles : list[int]
+        List of experimental ensemble indices that were used in the SHRED runs. .
+
+    r_vals : list[int]
+        List of SVD ranks that were used in the SHRED runs.  Only consulted
+        when r_analysis is True.
+
+    vel_planes : list[int]
+        Indices of the horizontal velocity planes whose SHRED error metrics
+        should be included in the depth-averaging.
+
+    sensor_vals : list[int]
+        List of sensor counts that were used when r_analysis is ``False``;
+        ignored otherwise.
+
+    optimal_var_val : int | float
+        Reference value (e.g. “best” rank) that will be emphasised with a
+        vertical dashed line in the plot.
+
+    SHRED_ensembles : list[int]
+        Indices of the SHRED training ensembles to be averaged over when
+        computing the error metrics.
+
+    full_planes : bool, default ``False``
+        If True the error for **all** DNS planes is loaded; otherwise only
+        the planes listed in *vel_planes* are considered.
+
+    r_analysis : bool, default ``True``
+        • True – vary r_vals while the number of sensors is fixed.  
+        • False – vary sensor_vals while r is fixed.
+
+    singular_val_energy : bool, default ``False``
+        When r_analysis is True and this flag is set, the x-axis is
+        converted from rank to cumulative SVD energy (%) before plotting.
+
+    comp_rate : bool, default ``False``
+        Alternative x-axis for r_analysis: percentage of total available SVD
+        modes that are retained.
+
+    Returns
+    -------
+    None
+        The function gives a plot:
+
+        * Normalises each metric to its own maximum and produces a Matplotlib
+          figure showing all four metrics versus either rank (or its proxy) or
+          sensor count.
+        * Saves the figure as ``"<var_str>_analysis_teetank_<case>.pdf"`` in the
+          working directory and displays it on screen.
+
+    """
+    case = utilities.case_name_converter(case)
+
+    mse_list, ssim_list, psnr_list, psd_list =processdata.calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, experimental_ensembles, forecast=False, r_analysis=r_analysis)
+        
+    if r_analysis:
+        var_vals = r_vals
+        total_ranks=900
+
+        s_energy, r_percentage = utilities.get_cumsum_svd_exp(r_vals, total_ranks, case, experimental_ensembles[0], plane=2)
+        var_str = 'rank'
+        if singular_val_energy:
+            var_vals = s_energy*100
+            var_str = "% SVD cumulative energy"
+        if comp_rate:
+            var_vals=r_percentage*100
+            var_str = "% Of total SVD ranks"
+    else:
+        var_vals = sensor_vals
+        var_str = 'sensors'
+        
+    
+    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
+    plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
+    plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
+    plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
+    plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    plt.grid()
+    plt.xlabel(var_str,fontsize='16')
+    plt.legend(fontsize=13)
+    plt.tick_params(axis='x', which='major', labelsize=13)
+    plt.tick_params(axis='y', which='major', labelsize=13)
+    #plt.ylabel('PSNR')
+    fname = PLOTS_DIR / (var_str + "_analysis_T_tank_"+case+".pdf")
+    plt.savefig(fname)
+    plt.show()
+
+
+
+def plot_data_snaps(snap_start, snap_end, data_scale, DNS_case, velocity_plane, surface=False, GIF_only=True):
+    if surface:
+        data = utilities.get_surface_DNS(DNS_case)
+        color=cmocean.cm.ice
+        plane_str = 'surf'
+    else:
+        data= utilities.get_velocity_plane_DNS(DNS_case, velocity_plane)
+        color= 'RdBu_r'
+        plane_str = 'plane' + str(velocity_plane)
+    XX, YY = utilities.get_mesh_DNS(DNS_case)
+    num_snaps = snap_end-snap_start
+    
+    #iterate and plot each data snapshot in the interval
+    filenames_snaps = []
+    for i in range(snap_start, snap_end+1):
+        print("snap: ", i)
+        snap = data[:,:,i]
+
+        fig, (ax1) = plt.subplots(1, 1, figsize=(5, 5))  # 1 row, 2 columns
+        ax1.set_title(str(i))    
+        colour_levels = np.linspace(-data_scale,data_scale, 500)
+        contour = ax1.contourf(XX,YY, snap, levels = colour_levels, cmap = color)
+        ax1.set_xlabel('X')
+        ax1.set_ylabel('Y')
+        ax1.legend()
+      
+        ax1.tick_params(axis='both', labelsize=16)
+        #cb.set_label(label='u [m/s]', fontsize=16)
+        #fig.colorbar(contour, ax=ax1, ticks=my_ticks, label="$u$ [m/s]")
+
+        # Adjust the layout so the plots do not overlap
+        plt.tight_layout()
+        if GIF_only:
+            adr = PLOTS_DIR /("DNS plot throwaway" + DNS_case + str(i) + ".png")
+        else:
+            adr = PLOTS_DIR / ('DNS plot results' + DNS_case + str(i) + ".png")
+
+        plt.savefig(adr)
+        filenames_snaps.append(adr)
+        #plt.show()
+
+    gif_name = PLOTS_DIR / (DNS_case + "_"+ plane_str+ "_"+str(snap_start)+"_to" + str(snap_end) +".gif")
+    utilities.create_GIF(filenames_snaps, gif_name)
+
+#colors from the ghibli package
+ghibli_palettes = {
+	'MarnieLight1':cycler('color', ['#95918E','#AF9699','#80C7C9','#8EBBD2','#E3D1C3','#B3DDEB','#F3E8CC']),
+	'MarnieMedium1':cycler('color', ['#28231D','#5E2D30','#008E90','#1C77A3','#C5A387','#67B8D6','#E9D097']),
+	'MarnieDark1':cycler('color', ['#15110E','#2F1619','#004749','#0E3B52','#635143','#335D6B','#73684C']),
+	'MarnieLight2':cycler('color', ['#8E938D','#94A39C','#97B8AF','#A2D1BD','#C0CDBC','#ACD2A3','#E6E58B']),
+	'MarnieMedium2':cycler('color', ['#1D271C','#274637','#2C715F','#44A57C','#819A7A','#58A449','#CEC917']),
+	'MarnieDark2':cycler('color', ['#0E130D','#14231C','#17382F','#22513D','#404D3C','#2C5223','#66650B']),
+	'PonyoLight':cycler('color', ['#A6A0A0','#ADB7C0','#94C5CC','#F4ADB3','#EEBCB1','#ECD89D','#F4E3D3']),
+	'PonyoMedium':cycler('color', ['#4C413F','#5A6F80','#278B9A','#E75B64','#DE7862','#D8AF39','#E8C4A2']),
+	'PonyoDark':cycler('color', ['#262020','#2D3740','#14454C','#742D33','#6E3C31','#6C581D','#746353']),
+	'LaputaLight':cycler('color', ['#898D90','#8D93A1','#9F99B5','#AFACC9','#D7CADE','#DAEDF3','#F7EABD']),
+	'LaputaMedium':cycler('color', ['#14191F','#1D2645','#403369','#5C5992','#AE93BE','#B4DAE5','#F0D77B']),
+	'LaputaDark':cycler('color', ['#090D10','#0D1321','#1F1935','#2F2C49','#574A5E','#5A6D73','#776A3D']),
+	'MononokeLight':cycler('color', ['#838A90','#BA968A','#9FA7BE','#B3B8B1','#E7A79B','#F2C695','#F5EDC9']),
+	'MononokeMedium':cycler('color', ['#06141F','#742C14','#3D4F7D','#657060','#CD4F38','#E48C2A','#EAD890']),
+	'MononokeDark':cycler('color', ['#030A10','#3A160A','#1F273E','#333831','#67271B','#724615','#756D49']),
+	'SpiritedLight':cycler('color', ['#8F9297','#9A9C97','#C19A9B','#C7C0C8','#B4DCF5','#E1D7CB','#DBEBF8']),
+	'SpiritedMedium':cycler('color', ['#1F262E','#353831','#833437','#8F8093','#67B9E9','#C3AF97','#B7D9F2']),
+	'SpiritedDark':cycler('color', ['#0F1217','#1A1C17','#411A1B','#474048','#345C75','#61574B','#5B6B78']),
+	'YesterdayLight':cycler('color', ['#768185','#7E8C97','#88988D','#9DAFC3','#B1D5BB','#ECE28B','#C3DAEA']),
+	'YesterdayMedium':cycler('color', ['#061A21','#132E41','#26432F','#4D6D93','#6FB382','#DCCA2C','#92BBD9']),
+	'YesterdayDark':cycler('color', ['#030E12','#0B1924','#15251A','#2A3C50','#3E6248','#796F18','#506777']),
+	'KikiLight':cycler('color', ['#8E8C8F','#9A9AA2','#D98594','#86C2DA','#D0C1AA','#C0DDE1','#E9DBD0']),
+	'KikiMedium':cycler('color', ['#1C1A1F','#333544','#B50A2A','#0E84B4','#9E8356','#7EBAC2','#D1B79E']),
+	'KikiDark':cycler('color', ['#0E0C0F','#1A1A22','#590514','#06425A','#50412A','#405D61','#695B50']),
+	'TotoroLight':cycler('color', ['#85898A','#959492','#AC9D96','#A8A6A9','#A1B1C8','#D6C0A9','#DCD3C4']),
+	'TotoroMedium':cycler('color', ['#0A1215','#2D2A25','#583B2B','#534C53','#446590','#AD8152','#BBA78C']),
+	'TotoroDark':cycler('color', ['#05090A','#151412','#2C1D16','#282629','#213148','#564029','#5C5344'])
+}
+
+def set_palette(palette):
+    
+    plt.rcParams['axes.prop_cycle'] = ghibli_palettes[palette]
+
