@@ -13,7 +13,7 @@ infer subsurface turbulence velocity fields from 3 surface sensor points capturi
 
 ### Method 
 We apply the SHallow REcurrent Decoder (SHRED), which combines an LSTM (temporal encoder) with a shallow decoder (spatial mapping). We train in a compressed SVD basis to ease the training while keeping the relevant turbulence. Figure below shows the general outline. 
-![Figures/SHRED_architecture.png](Figures/SHRED_architecture.png)
+![Figures/SHRED_architecture.png](plots/SHRED_architecture.png)
 
 We input time series of surface elevation from three randomly placed surface sensor points into a two-layer LSTM. The LSTM encodes these input sequences into a latent representation of their temporal dynamics. This latent vector is then passed to a shallow decoder network (SDN), which maps it onto the velocity fields across depth. We do this in compressed space, by feeding into the SDN the compressed V matrices of the SVD decomposition for the surface elevation and the subsurface velocity fields. These fields are used in training and validation not to learn the subsurface time dynamics but only to learn the mapping of the surface time dynamics onto the subsurface fields.
 
