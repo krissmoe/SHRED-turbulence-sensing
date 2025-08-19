@@ -361,11 +361,11 @@ def get_normalized_z_exp(z, z_norm, exp_case):
     
     if exp_case=='P25':
 
-        L_int = 5.1 #cm
+        L_int = 4.77 #cm
         L_visc = None
         L_taylor = None
     elif exp_case=='P50':
-        L_int = 6.8 #cm
+        L_int = 7.15 #cm
         L_visc = None
         L_taylor = None
     

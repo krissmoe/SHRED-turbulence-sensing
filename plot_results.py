@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import utilities3 as utilities
+import utilities
 import cmocean
-import processdata3 as processdata
+import processdata
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import cycler
@@ -817,7 +817,7 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         ax_S2.set_xlim((0.055,0.19))
         ax_E1.set_xlim((0.65,2.3))
         ax_E2.set_xlim((0.3,2.8))
-        ax_E1.set_ylim((-2.0, 0.001))
+        ax_E1.set_ylim((-2.15, 0.001))
         ax_E2.set_ylim((-1.5, 0.001))
         if i>0:
             ax_S1.set_yticklabels([])

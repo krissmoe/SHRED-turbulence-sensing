@@ -2,7 +2,7 @@ import scipy.integrate
 import torch
 from scipy.io import loadmat
 import numpy as np
-import utilities3 as utilities
+import utilities
 import h5py
 from lvpyio import read_set
 from sklearn.preprocessing import MinMaxScaler
@@ -1729,7 +1729,7 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
         else:
             err_fname = METRICS_DIR / ("err_metrics_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
 
-        
+       
         with h5py.File(err_fname, 'r') as err_dict:
             # List all datasets in the file
             RMS_recons = np.array(err_dict['RMS_recons'])
@@ -1801,7 +1801,7 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
 
             err_fname = METRICS_DIR / ("err_metrics_TEE" + fcast + case + "_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat")
 
-        
+            
             with h5py.File(err_fname, 'r') as err_dict:
                 # List all datasets in the file
                 #print("Keys in the HDF5 file:", list(err_dict.keys()))
