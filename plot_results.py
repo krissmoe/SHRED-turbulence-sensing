@@ -280,7 +280,7 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 
 '''PLOTTING SHRED RESULTS'''
 
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 '''Plotter for Fig. 6'''
 
@@ -468,6 +468,7 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
 
 '''Plotter for Fig 7'''
 
+
 def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane_list, test_snap_index, u_fluc=None, surf_fluc=None, 
                               num_sensors=3, lags=52, forecast=False, add_surface=False):
     """
@@ -648,6 +649,11 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                 #ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', aspect='auto')
                 #ax.axis('off')
         plt.show()
+
+        # Add one colorbar for this row, attached to rightmost axis
+        divider = make_axes_locatable(axs[k, -1])
+        cax = divider.append_axes("right", size="4%", pad=0.08)
+
         filename = PLOTS_DIR / ("exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)+".eps")
         #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
         fig.savefig(filename, format='eps', bbox_inches='tight', pad_inches=0.5)
