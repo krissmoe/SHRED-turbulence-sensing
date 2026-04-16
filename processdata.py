@@ -1747,8 +1747,8 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
 
     #energy loss error:
 
-    energy_error = depth_integrated_energy(RMS_true_ensembles, RMS_recons_ensembles, DNS_case='RE2500')
-    print(f"Depth-integrated energy error:                  {energy_error*100:.1f}%")
+    energy_error = depth_integrated_energy(RMS_true_ensembles, RMS_recons_ensembles, case=DNS_case)
+    print(f"Depth-integrated energy error case {DNS_case}:                  {energy_error*100:.1f}%")
 
     #ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_ensembles, axis=0)
@@ -1769,9 +1769,12 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
 
 
 #NEW: 
-def depth_integrated_energy(u_rms_true, u_rms_recons, DNS_case='RE2500'):
+def depth_integrated_energy(u_rms_true, u_rms_recons, case='RE2500'):
 
-    zz = utilities.get_zz_DNS(DNS_case)
+    if case=='RE1000' or case=='RE2500':
+        zz = utilities.get_zz_DNS(case)
+    else:
+        zz = utilities.get_zz_exp()
 
     E_true = np.trapz(u_rms_true**2,axis=1, x=zz)
     E_recons = np.trapz(u_rms_recons**2, axis=1, x=zz)
@@ -1836,6 +1839,8 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
             psnr_ensembles[i,j] = psnr_values
             psd_ensembles[i,j] = psd_error
     
+    energy_error = depth_integrated_energy(np.mean(RMS_true_ensembles, axis=0), np.mean(RMS_recons_ensembles, axis=0), case=case)
+    print(f"Depth-integrated energy error case {case}:                  {energy_error*100:.1f}%")
     #SHRED ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_ensembles, axis=1)
     RMS_true_avg = np.mean(RMS_true_ensembles, axis=1)
@@ -2124,6 +2129,4 @@ def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, e
 
 
 
-
-    ###### SHRED codes
 
