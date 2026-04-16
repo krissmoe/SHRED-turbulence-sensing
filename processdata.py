@@ -1744,7 +1744,12 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
         ssim_ensembles[ens] = ssim_values
         psnr_ensembles[ens] = psnr_values
         psd_ensembles[ens] = psd_error
-    
+
+    #energy loss error:
+
+    energy_error = depth_integrated_energy(RMS_true_ensembles, RMS_recons_ensembles, DNS_case='RE2500')
+    print(f"Depth-integrated energy error:                  {energy_error*100:.1f}%")
+
     #ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_ensembles, axis=0)
     RMS_true_avg = np.mean(RMS_true_ensembles, axis=0)
@@ -1762,6 +1767,18 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
 
     return RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse, std_ssim, std_psnr, std_psd
 
+
+#NEW: 
+def depth_integrated_energy(u_rms_true, u_rms_recons, DNS_case='RE2500'):
+
+    zz = utilities.get_zz_DNS(DNS_case)
+
+    E_true = np.trapz(u_rms_true**2,axis=1, x=zz)
+    E_recons = np.trapz(u_rms_recons**2, axis=1, x=zz)
+
+    relative_error_all_ens = (E_recons - E_true) / E_true
+    relative_error_mean = np.mean(relative_error_all_ens)
+    return relative_error_mean
 
 
 def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast=False, full_planes=True):
