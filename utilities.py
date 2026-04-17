@@ -989,8 +989,11 @@ def fit_linear_map(train_sensors, train_coeffs):
     W : np.ndarray
         Linear map including intercept, shape (nsensors + 1, r)
     """
+    print("train_sensors shape:", train_sensors.shape)
+    print("train_coeffs shape:", train_coeffs.shape)
     nt = train_sensors.shape[0]
     Y = np.hstack([train_sensors, np.ones((nt, 1))])  # add intercept
+    print("Y shape:", Y.shape)
     W, *_ = np.linalg.lstsq(Y, train_coeffs, rcond=None)
     return W
 

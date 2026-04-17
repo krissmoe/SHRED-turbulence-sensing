@@ -709,6 +709,22 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
         dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
         sensor_locations_ne = np.random.choice(dimX*dimY, size=num_sensors, replace=False)
         
+        #choose mode for separation of data into training/validation/testing
+        if random_sampling:
+            n = dimT
+
+            train_indices = np.random.choice(n, size=int(0.8*n), replace=False) #80% training
+    
+            mask = np.ones(n) 
+            mask[train_indices] = 0
+
+            valid_test_indices = np.arange(0, n)[np.where(mask!=0)[0]] #indices left for validation/testing
+            valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
+            test_indices = valid_test_indices[1::2] #and the other (10%) for testing
+            print("test indices: ", test_indices)
+            n_test = test_indices.size
+
+
         for k in range(len(vel_planes)):
             plane = vel_planes[k]
             print("plane: ", plane)
@@ -740,42 +756,7 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
                 mask[sensor_locations_ne[i]]=1
 
 
-            #choose mode for separation of data into training/validation/testing
-            if random_sampling:
-                n = dimT
-
-                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
-    
-                mask = np.ones(n - lags) 
-                mask[train_indices] = 0
-
-                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
-                valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
-                test_indices = valid_test_indices[1::2] #and the other (10%) for testing
-                print("test indices: ", test_indices)
-                n_test = test_indices.size
-
-            else:
-                #forecast, by choosing test data as one continuous chunk of the time series 
-                #NOTE: note fully compatible with rest of code
-                n = (load_X).shape[0]
-                
-                n_train_valid = int(n*0.90) #n - lags - n_test - n_valid
-                
-                n_test = n-lags - n_train_valid
-                print("n_test: ", n_test)
-
-                n_train = int((8/9)*n_train_valid)
-                n_valid = n_train_valid - n_train
-
-                #randomize training in the dedicated training-validation dataset
-                train_indices = np.random.choice(n_train_valid, size=n_train, replace=False)
-                #train_indices = np.arange(0, n_train)
-                mask = np.ones(n_train_valid) 
-                mask[train_indices] = 0
-                valid_indices = np.arange(0, n_train_valid)[np.where(mask!=0)[0]]
-
-                test_indices = np.arange(n_train_valid, n-lags)
+            
             
             u_field_train = u_field[:,:,train_indices]
             train_sensor_values = sensor_time_series[:,train_indices]
@@ -786,11 +767,11 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
             print("do POD!")
             mean_field, modes, train_coeffs, shape2d, s = utilities.fit_pod(u_field_train, r=r)
             print("POD done!")
-            W = utilities.fit_linear_map(train_sensor_values, train_coeffs)
+            W = utilities.fit_linear_map(train_sensor_values.T, train_coeffs)
 
             print("reconstruct test!")
             test_recon_field, test_pred_coeffs = utilities.reconstruct_pod_from_sensors(
-                test_sensor_values,
+                test_sensor_values.T,
                 mean_field,
                 modes,
                 W,
@@ -803,9 +784,9 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
             #RMS 
             u_recons = test_recon_field#utilities.convert_3d_to_2d(u_recons_test)
             u_truth = utilities.convert_3d_to_2d(u_field[:,:,test_indices]) #utilities.convert_3d_to_2d(u_fluc_test)
-
+            dimT_test = len(test_indices)
             u_fluc_test = u_field[:,:,test_indices]
-            u_recons_test = utilities.convert_2d_to_3d(u_recons, dimX, dimY, dimT)
+            u_recons_test = utilities.convert_2d_to_3d(u_recons, dimX, dimY, dimT_test)
             num_test_snaps = len(test_indices)
             RMS_recons = utilities.get_RMS(u_recons)
             RMS_true =  utilities.get_RMS(u_truth)
@@ -813,7 +794,7 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
 
             #Normalized Mean squared error (NMSE)
             print("calc MSE")
-            mse = np.mean((u_truth - u_recons) ** 2, axis=(0,1))  # Mean over spatial and time dimensions
+            mse = np.mean((u_truth - u_recons_test) ** 2, axis=(0,1))  # Mean over spatial and time dimensions
             norm_factor = np.mean(u_truth ** 2, axis=(0, 1))
             MSE_z = mse / norm_factor
 
@@ -842,7 +823,7 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
 
             #PSD
             print("calc PSD")
-            psd_error = power_spectral_density_error(u_field, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
+            psd_error = power_spectral_density_error(u_fluc_test, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
             print("PSD error: ", psd_error)
         
             #save vertical error metric profiles in dictionary
