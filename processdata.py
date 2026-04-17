@@ -563,11 +563,12 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
             print("rank: ", r, "\n SHRED ensemble: ", p)
             
             #reduce SVD matrices (only need V matrix)
-            U_tot_u_red, S_tot_u_red, V_tot_red = utilities.reduce_SVD(U_tot_u, S_tot_u, V_tot, levels=2, rank=r, Tee=True, surf=False)
+            U_tot_u_red, S_tot_u_red, V_tot_red = utilities.reduce_SVD(U_tot_u, S_tot_u, V_tot, levels=2, rank=r, exp=True, surf=False)
             
             dimX = X_surf.shape[0] 
             dimY = X_surf.shape[1]
-
+            print("dimX*dimY", dimX*dimY)
+            print("num_sensors: ", num_sensors)
             #building array for input to SHRED
             #first insert V matrix for chosen plane + corresponding surface 
             load_X = V_tot_red
@@ -693,6 +694,189 @@ def SHRED_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experim
                 for key, value in SHRED_dict.items():
                     f.create_dataset(key, data=value)
 
+
+def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
+
+    DNS_case = utilities.case_name_converter(DNS_case)
+
+    #extract surface and normalize
+    surf = utilities.get_normalized_surface_DNS(DNS_case)
+    
+    #iterate SHRED ensembles p 
+    for p in range(ens_start, ens_end+1):
+        ensemble=ens_start + p
+        #iterate over ranks, if input is a list
+        dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+        sensor_locations_ne = np.random.choice(dimX*dimY, size=num_sensors, replace=False)
+        
+        for k in range(len(vel_planes)):
+            plane = vel_planes[k]
+            print("plane: ", plane)
+            r = r_vals[0]
+            print("rank: ", r, "\n SHRED ensemble: ", p)
+            
+            #get SVD arrays and stack horizontally
+            # includes all planes, plus SVD of surface on top
+            #U_tot, S_tot, V_tot = utilities.stack_svd_arrays_DNS(vel_planes, r, DNS_case=DNS_case)
+
+            u_field =utilities.get_velocity_plane_DNS(DNS_case, plane)
+            
+
+            #building array for input to SHRED
+            #first insert V matrices fo all chosen velocity planes + surface 
+            #load_X = V_tot
+
+            #assign random sensor placements
+            
+            print("sensor_loc: ", sensor_locations_ne)
+            sensor_locations = np.arange(0,num_sensors,1, dtype=int)
+            sensor_time_series = surf[sensor_locations_ne,:]
+
+      
+
+            #creating a mask: grid with zeros expect the sensor points that's assigned with 1
+            mask = np.zeros(dimX*dimY)
+            for i in range(num_sensors):
+                mask[sensor_locations_ne[i]]=1
+
+
+            #choose mode for separation of data into training/validation/testing
+            if random_sampling:
+                n = dimT
+
+                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
+    
+                mask = np.ones(n - lags) 
+                mask[train_indices] = 0
+
+                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
+                valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
+                test_indices = valid_test_indices[1::2] #and the other (10%) for testing
+                print("test indices: ", test_indices)
+                n_test = test_indices.size
+
+            else:
+                #forecast, by choosing test data as one continuous chunk of the time series 
+                #NOTE: note fully compatible with rest of code
+                n = (load_X).shape[0]
+                
+                n_train_valid = int(n*0.90) #n - lags - n_test - n_valid
+                
+                n_test = n-lags - n_train_valid
+                print("n_test: ", n_test)
+
+                n_train = int((8/9)*n_train_valid)
+                n_valid = n_train_valid - n_train
+
+                #randomize training in the dedicated training-validation dataset
+                train_indices = np.random.choice(n_train_valid, size=n_train, replace=False)
+                #train_indices = np.arange(0, n_train)
+                mask = np.ones(n_train_valid) 
+                mask[train_indices] = 0
+                valid_indices = np.arange(0, n_train_valid)[np.where(mask!=0)[0]]
+
+                test_indices = np.arange(n_train_valid, n-lags)
+            
+            u_field_train = u_field[:,:,train_indices]
+            train_sensor_values = sensor_time_series[:,train_indices]
+            test_sensor_values = sensor_time_series[:, test_indices]
+            
+            #and here the shred method would come, but now we want some POD...
+
+            print("do POD!")
+            mean_field, modes, train_coeffs, shape2d, s = utilities.fit_pod(u_field_train, r=r)
+            print("POD done!")
+            W = utilities.fit_linear_map(train_sensor_values, train_coeffs)
+
+            print("reconstruct test!")
+            test_recon_field, test_pred_coeffs = utilities.reconstruct_pod_from_sensors(
+                test_sensor_values,
+                mean_field,
+                modes,
+                W,
+                shape2d
+            )
+
+
+            #calculate error metrics for this plane and SHRED ensemble case
+
+            #RMS 
+            u_recons = test_recon_field#utilities.convert_3d_to_2d(u_recons_test)
+            u_truth = utilities.convert_3d_to_2d(u_field[:,:,test_indices]) #utilities.convert_3d_to_2d(u_fluc_test)
+
+            u_fluc_test = u_field[:,:,test_indices]
+            u_recons_test = utilities.convert_2d_to_3d(u_recons, dimX, dimY, dimT)
+            num_test_snaps = len(test_indices)
+            RMS_recons = utilities.get_RMS(u_recons)
+            RMS_true =  utilities.get_RMS(u_truth)
+
+
+            #Normalized Mean squared error (NMSE)
+            print("calc MSE")
+            mse = np.mean((u_truth - u_recons) ** 2, axis=(0,1))  # Mean over spatial and time dimensions
+            norm_factor = np.mean(u_truth ** 2, axis=(0, 1))
+            MSE_z = mse / norm_factor
+
+
+            #SSIM
+            print("calc SSIM")
+            ssim_snapshots = [
+                ssim(u_fluc_test[:, :, t], u_recons_test[:, :, t], data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[ :, :, t].min())
+            for t in range(num_test_snaps)
+            ]
+            ssim_values = np.mean(ssim_snapshots)
+            print("ssim_vals: ", ssim_values)
+
+            #PSNR
+            print("calc PSNR")
+            psnr_snapshots = [
+            psnr(
+                u_fluc_test[:, :, t],
+                u_recons_test[:, :, t],
+                data_range=u_fluc_test[ :, :, t].max() - u_fluc_test[:, :, t].min()
+            )
+            for t in range(num_test_snaps)
+            ]
+            psnr_values = np.mean(psnr_snapshots)  # Average over time
+            print("PSNR val: ", psnr_values)
+
+            #PSD
+            print("calc PSD")
+            psd_error = power_spectral_density_error(u_field, u_recons_test, 3, DNS=True, DNS_case=DNS_case)
+            print("PSD error: ", psd_error)
+        
+            #save vertical error metric profiles in dictionary
+            err_dict = {
+                'RMS_recons' : RMS_recons,
+                'RMS_true' : RMS_true,
+                'MSE' : MSE_z,
+                'ssim' : ssim_values,
+                'psnr' : psnr_values,
+                'psd' : psd_error
+            }
+
+
+        
+            if full_planes:
+                plane_string ="_full_planes"
+            else:  
+                plane_string = "_planes"
+                for i in range(len(vel_planes)):
+                    plane_string = plane_string + "_" +  str(vel_planes[i])
+
+            plane_string='_plane' + plane
+
+            fcast="_"
+       
+            if DNS_case=='RE2500': 
+                err_fname = METRICS_DIR / ("POD_err_metrics" + fcast +"r"+str(r)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+            else:
+                err_fname = METRICS_DIR / ("POD_err_metrics_RE1000" + fcast +"r"+str(r)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+  
+            with h5py.File(err_fname, 'w') as f:
+                for key, value in err_dict.items():
+                    f.create_dataset(key, data=value)
+            print("saved successfully!")
 
 '''------------------------------------------------------------------------------------------------------------------------------'''
 
@@ -1775,7 +1959,7 @@ def depth_integrated_energy(u_rms_true, u_rms_recons, case='RE2500'):
         zz = utilities.get_zz_DNS(case)
     else:
         zz = utilities.get_zz_exp()
-
+        zz = zz[1:]
     E_true = np.trapz(u_rms_true**2,axis=1, x=zz)
     E_recons = np.trapz(u_rms_recons**2, axis=1, x=zz)
 
@@ -2116,7 +2300,7 @@ def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, e
             num_sensors=sensor_vals[i]
 
 
-        rank = r_vals[i]
+        #rank = r_vals[i]
         RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= get_ensemble_avg_error_metrics_exp(case, 
                                 rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast, full_planes=True)
         

@@ -1084,7 +1084,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
             ax.tick_params(axis='x', which='major', labelsize=16, length=10)
         
         ax.set_xlim(0.0)
-        ax.set_ylim(-2.8,0.05)
+        ax.set_ylim(-1.7,0.05)
         ax.grid()
 
         #ax.errorbar(data2, depth, xerr = err2, linestyle='-', marker=marker1, label=labels[1], capsize=3, errorevery=1)
@@ -1797,7 +1797,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.show()
 
 
-def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
+def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False):
     """
     Compare how average reconstruction error metrics changes when either the
     SVD‐rank r or the number of surface sensors is varied for a given experimental
@@ -1886,6 +1886,10 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
     plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
     plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    if log:
+        # Log x-axis
+        plt.xscale('log')
+        #plt.xticks(var_vals, labels=[f"{v:.1e}" for v in var_vals[::-3]])
     plt.grid()
     plt.xlabel(var_str,fontsize='16')
     plt.legend(fontsize=13)

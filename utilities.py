@@ -119,6 +119,9 @@ def read_exp_plane(case='P25',depth='H390',variable='U0',addr=''):
 
 
 def get_surface_exp(case='P25', depth='H390'):
+    if not isinstance(depth, str):
+        depths = ['H395', 'H390', 'H375', 'H350', 'H300']
+        depth=depths[depth-1]
     fname = 'data/exp/raw/Eta_case_'+case+"_"+depth + ".mat" 
     with h5py.File(fname, 'r') as exp:
         surf_fluc = np.array(exp['eta'])
@@ -307,6 +310,7 @@ def get_integral_length_scale(DNS_case, addr=''):
     TurbScales = sp.io.loadmat(tscales_fname)
 
     L_int = TurbScales['TurbScales']['Lint'][0,0][0][0]
+    print("L_INT: ", L_int)
     L_visc = TurbScales['TurbScales']['Lvisc'][0,0][0][0]
     L_taylor = TurbScales['TurbScales']['Ltay'][0,0][0][0]
     L_kolmogorov = TurbScales['TurbScales']['Lkolm'][0,0][0][0]
@@ -326,7 +330,8 @@ def get_normalized_z(z, z_norm, DNS_case, addr=''):
         '''
     
     #load file with scales:
-    tscales_fname = DNS_RAW_DIR / (DNS_case +"/TurbScales_" + DNS_case + ".mat")
+    #tscales_fname = DNS_RAW_DIR / (DNS_case +"/TurbScales_" + DNS_case + ".mat")
+    tscales_fname = DNS_RAW_DIR / (DNS_case +"/turbScales_" + DNS_case + ".m")
     TurbScales = sp.io.loadmat(tscales_fname)
 
     L_int = TurbScales['TurbScales']['Lint'][0,0][0][0]
@@ -337,6 +342,7 @@ def get_normalized_z(z, z_norm, DNS_case, addr=''):
     Re_taylor = TurbScales['TurbScales']['ReTay'][0,0][0][0]
     u_Rep = TurbScales['TurbScales']['uRep'][0,0][0][0]
 
+    print("L_INT: ", L_int)
 
     if z_norm=='taylor':
         z = z/L_taylor
@@ -361,11 +367,11 @@ def get_normalized_z_exp(z, z_norm, exp_case):
     
     if exp_case=='P25':
 
-        L_int = 4.77 #cm
+        L_int = 7.71#4.77 #cm
         L_visc = None
         L_taylor = None
     elif exp_case=='P50':
-        L_int = 7.15 #cm
+        L_int = 11.54#7.15 #cm
         L_visc = None
         L_taylor = None
     
@@ -907,6 +913,122 @@ def stack_svd_arrays_DNS(vel_planes, rank, DNS_case='RE2500', exp_ens=None, exp_
     return U_tot, S_tot, V_tot
 
 
+'''--------------------------------------------------------------------------------------------------------------------------------------'''
+
+'''POD BASELINE LINEAR METHOD'''
+
+
+def fit_pod(train_fields, r):
+    """
+    Fit POD basis to training target fields of shape (nx, ny, nt).
+
+    Parameters
+    ----------
+    train_fields : np.ndarray
+        Array of shape (nx, ny, nt)
+    r : int
+        Number of POD modes
+
+    Returns
+    -------
+    mean_field : np.ndarray
+        Mean field, shape (nspace,)
+    modes : np.ndarray
+        POD modes, shape (nspace, r)
+    coeffs : np.ndarray
+        POD coefficients for training data, shape (nt, r)
+    shape2d : tuple
+        Original spatial shape (nx, ny)
+    singvals : np.ndarray
+        Singular values, shape (min(nspace, nt),)
+    """
+    nx, ny, nt = train_fields.shape
+    nspace = nx * ny
+
+    # Snapshot matrix: each row = one time snapshot
+    # Shape: (nt, nspace)
+    X = train_fields.reshape(nspace, nt).T
+
+    mean_field = X.mean(axis=0)      # (nspace,)
+    Xc = X - mean_field              # centered data
+
+    # SVD: Xc = U S V^T
+    U, s, Vt = np.linalg.svd(Xc, full_matrices=False)
+
+    # Spatial POD modes
+    modes = Vt[:r].T                 # (nspace, r)
+
+    # Training coefficients
+    coeffs = Xc @ modes              # (nt, r)
+
+    return mean_field, modes, coeffs, (nx, ny), s
+
+def choose_rank_from_svd(singular_values, energy_threshold=0.95):
+    """
+    Choose POD rank from cumulative explained energy.
+    """
+    energy = singular_values**2
+    cumulative = np.cumsum(energy) / np.sum(energy)
+    r = np.searchsorted(cumulative, energy_threshold) + 1
+    return r
+
+
+def fit_linear_map(train_sensors, train_coeffs):
+    """
+    Fit linear regression from sensor measurements to POD coefficients.
+
+    Parameters
+    ----------
+    train_sensors : np.ndarray
+        Shape (nt, nsensors)
+    train_coeffs : np.ndarray
+        Shape (nt, r)
+
+    Returns
+    -------
+    W : np.ndarray
+        Linear map including intercept, shape (nsensors + 1, r)
+    """
+    nt = train_sensors.shape[0]
+    Y = np.hstack([train_sensors, np.ones((nt, 1))])  # add intercept
+    W, *_ = np.linalg.lstsq(Y, train_coeffs, rcond=None)
+    return W
+
+
+def reconstruct_pod_from_sensors(test_sensors, mean_field, modes, W, shape2d):
+    """
+    Reconstruct full test fields from sensor measurements.
+
+    Parameters
+    ----------
+    test_sensors : np.ndarray
+        Shape (nt_test, nsensors)
+    mean_field : np.ndarray
+        Shape (nspace,)
+    modes : np.ndarray
+        Shape (nspace, r)
+    W : np.ndarray
+        Shape (nsensors + 1, r)
+    shape2d : tuple
+        (nx, ny)
+
+    Returns
+    -------
+    recon_fields : np.ndarray
+        Reconstructed fields, shape (nx, ny, nt_test)
+    pred_coeffs : np.ndarray
+        Predicted coefficients, shape (nt_test, r)
+    """
+    nt_test = test_sensors.shape[0]
+    Y = np.hstack([test_sensors, np.ones((nt_test, 1))])
+
+    pred_coeffs = Y @ W                        # (nt_test, r)
+    Xhat = mean_field[None, :] + pred_coeffs @ modes.T   # (nt_test, nspace)
+
+    nx, ny = shape2d
+    recon_fields = Xhat.T.reshape(nx, ny, nt_test)
+
+    return recon_fields, pred_coeffs
 '''--------------------------------------------------------------------------------------------------------------------------------------'''
 
 
