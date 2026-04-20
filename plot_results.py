@@ -856,7 +856,7 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
 
 
 '''Plotter for Fig 9'''
-def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None):
+def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_POD_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_POD_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None, pod=False):
     """
     Build the “four-case” figure that compares depth-dependent SHRED
     reconstruction metrics for
@@ -948,7 +948,20 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     RMS_recons_avg_2, RMS_true_avg, mse_avg_2, ssim_avg_2, psnr_avg_2, psd_avg_2, std_RMS_recons_2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case2,
         ranks[1], vel_planes_S2, num_sensors, SHRED_ensembles_S2, forecast=forecast, full_planes=full_planes)
     
-
+    if pod:
+        RMS_recons_avg_pod2, RMS_true_avg_pod, mse_avg_pod2, ssim_avg_pod2, psnr_avg_pod2, psd_avg_pod2, std_RMS_recons_pod2, std_mse_z_pod, std_ssim_pod, std_psnr_pod, std_psd_pod, vel_planes_POD= processdata.get_ensemble_avg_error_metrics_POD(DNS_case2,
+            ranks[1], vel_planes_POD_S2, num_sensors, SHRED_ensembles_POD_S2, forecast=forecast, full_planes=False)
+        z2_pod = z2[[x - 1 for x in vel_planes_POD]]
+    else:
+            
+        RMS_recons_avg_pod2=None  
+        mse_avg_pod2=None 
+        ssim_avg_pod2=None
+        psnr_avg_pod2=None
+        psd_avg_pod2=None 
+        std_RMS_recons_pod2=None
+        vel_planes_POD=None
+        z2_pod=z2
     #extract ensemble-avg error metrics from experiments
     RMS_recons_avg_exp1, RMS_true_avg_exp1, mse_avg_exp1, ssim_avg_exp1, psnr_avg_exp1, psd_avg_exp1, std_RMS_recons_exp1, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case1, 
         ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, forecast=False, full_planes=full_planes_exp)
@@ -963,7 +976,9 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, colors,
     z1, z2, z1_exp, z2_exp, RMS_z1, RMS_z2, RMS_exp_z1, RMS_exp_z2, RMS_recons_avg_1, RMS_recons_avg_2, RMS_recons_avg_exp1, RMS_recons_avg_exp2, 
     std_RMS_recons_1, std_RMS_recons_2, std_RMS_recons_exp1, std_RMS_recons_exp2, mse_avg_1, mse_avg_2, mse_avg_exp1, mse_avg_exp2, psd_avg_1, psd_avg_2, psd_avg_exp1, psd_avg_exp2, 
-    ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm)
+    ssim_avg_1, ssim_avg_2, ssim_avg_exp1, ssim_avg_exp2, psnr_avg_1, psnr_avg_2, psnr_avg_exp1, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm,
+    rms_u_pod_2=RMS_recons_avg_pod2, std_rms_u_pod_2=std_RMS_recons_pod2,
+    nmse_pod_2=mse_avg_pod2, psd_pod_2=psd_avg_pod2, ssim_pod_2=ssim_avg_pod2, psnr_pod_2=psnr_avg_pod2, depth_s2_pod=z2_pod)
 
 
 '''Helper functions for figure 9'''
@@ -971,8 +986,10 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
 def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     depth1, depth2, depth3, depth4, rms_u_gt_1, rms_u_gt_2, rms_u_gt_3, rms_u_gt_4, rms_u_recon_1, rms_u_recon_2, rms_u_recon_3, rms_u_recon_4, 
     std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
-    ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None
-):
+    ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None,
+    rms_u_pod_2=None, std_rms_u_pod_2=None,
+    nmse_pod_2=None, psd_pod_2=None, ssim_pod_2=None, psnr_pod_2=None, depth_s2_pod=None
+    ):
 
     """
     Plots depth-dependent error metrics in an 8-panel layout.
@@ -1005,7 +1022,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
         z_label = None
       
     # Helper function for single-curve panels
-    def plot_single_curve(ax, data1, data2, data3, data4, depth1, depth2, depth3, depth4, err, label1, label2, label3, label4, xlabel, colors, xlim=False, z_label=None, z_tics=True):
+    def plot_single_curve(ax, data1, data2, data3, data4, depth1, depth2, depth3, depth4, err, label1, label2, label3, label4, xlabel, colors, xlim=False, z_label=None, z_tics=True, pod_data_2=None, depth_s2_pod=depth_s2_pod, pod_label2=None):
 
 
         if len(data1)>30:
@@ -1013,6 +1030,13 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
             ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
             ax.plot(data2, depth2, linestyle='-', marker=marker1, color=colors[1], label=label2)
             
+            if pod_data_2 is not None:
+                ax.plot(
+                    pod_data_2, depth_s2_pod,
+                    linestyle=':', color=colors[1], linewidth=2.0,
+                    label=pod_label2 if pod_label2 is not None else 'POD, S2'
+                )
+
             #activate when using P25
             ax.plot(data3, depth3, marker='o', color=colors[2], label=label3)
             ax.plot(data4, depth4, marker='o', color=colors[3], label=label4)
@@ -1026,7 +1050,12 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
             ax.plot(data2, depth2, marker=marker1, color=colors[1], label=label2)
             #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
             #ax.errorbar(data1, depth1, xerr = err, linestyle='-', marker=marker1, label=label, capsize=3, errorevery=3)
-        
+            if pod_data_2 is not None:
+                ax.plot(
+                    pod_data_2, depth_s2_pod,
+                    linestyle=':', marker='s', color=colors[1],
+                    label=pod_label2 if pod_label2 is not None else 'POD, S2'
+                )
         if z_tics:
             ax.tick_params(axis='both', which='major', labelsize=16, length=10)
         else:
@@ -1044,7 +1073,8 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
 
     # Helper function for two-curve panels
     def plot_two_curves(ax, data1_truth, data1_recons, data2_truth, data2_recons, depth1, depth2,
-                         err1_recons, err2_recons,labels1, labels2, xlabel, colors, DNS=True, z_label=None, z_tics=True):
+                         err1_recons, err2_recons,labels1, labels2, xlabel, colors, DNS=True, z_label=None, z_tics=True,
+                         data2_pod=None, err2_pod=None, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod):
 
         
         lower_bound1 = data1_recons - err1_recons
@@ -1062,6 +1092,15 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
             ax.fill_betweenx(depth2, lower_bound2, upper_bound2,color=colors[1],alpha=0.2)
             ax.plot(data2_truth, depth2, linestyle='-', marker=marker1, color=colors[1], label=labels2[0])
             #ax.set_xlabel(r'(a) $\langle u_{\mathrm{RMS}}\rangle$, Cases S1 \& S2')
+            
+            if data2_pod is not None:
+                if err2_pod is not None:
+                    lower_bound2_pod = data2_pod - err2_pod
+                    upper_bound2_pod = data2_pod + err2_pod
+                    ax.fill_betweenx(depth_s2_pod, lower_bound2_pod, upper_bound2_pod, color=colors[1], alpha=0.10)
+                ax.plot(data2_pod, depth_s2_pod, linestyle='--', color=colors[1], linewidth=2.0, label=label2_pod)
+
+            
             if z_label != None:
                 ax.set_ylabel(z_label, fontsize=21)
 
@@ -1109,7 +1148,8 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     labels1=['Ground truth, S1', 'Recons, S2']
     labels2=['Ground truth, S2', 'Recons, S2']
     plot_two_curves(ax1, rms_u_gt_1, rms_u_recon_1, rms_u_gt_2, rms_u_recon_2, depth1, depth2, err1_recons=std_rms_u_1, err2_recons=std_rms_u_2,
-                     labels1=labels1, labels2=labels2, xlabel='(a) $<u_{RMS}>$, Cases S1 \& S2', colors=colors, DNS=True, z_label=z_label)
+                     labels1=labels1, labels2=labels2, xlabel='(a) $<u_{RMS}>$, Cases S1 \& S2', colors=colors, DNS=True, z_label=z_label,
+                     data2_pod=rms_u_pod_2, err2_pod=std_rms_u_pod_2, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod)
 
 
     ax2 = fig.add_subplot(gs[0, 1])
@@ -1127,16 +1167,20 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     case_E1= 'E1'
     case_E2= 'E2'
     #plot_single_curve(ax5, nmse_data_1, nmse_data_2, depth1, depth2, err=std_nmse, label1=DNS_case1, label2 =DNS_case2, xlabel='Normalized Mean Square Error', colors=colors, z_label=z_label)
-    plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label)
+    plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label,
+                      pod_data_2=nmse_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
     ax6 = fig.add_subplot(gs[1, 1])
-    plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False)
+    plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False,
+                      pod_data_2=psd_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
 
     # Row 3: SSIM (left) and PSNR (right)
     ax7 = fig.add_subplot(gs[2, 0])
-    plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,)
+    plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,
+                      pod_data_2=ssim_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
 
     ax8 = fig.add_subplot(gs[2, 1])
-    plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False)
+    plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False, 
+                      pod_data_2=psnr_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
 
     # Adjust layout
 
@@ -1695,7 +1739,7 @@ def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_
 
 
 
-def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False):
+def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False):
     """
     Compare how average reconstruction error metrics changes when either the
     SVD‐rank r or the number of surface sensors is varied for a given DNS
@@ -1760,7 +1804,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     #calculate average error vertically using all given planes in vel_planes, 
     #for all rank values in r_vals
     #it gives a list of avg error metric values corresponding to the r_vals ranks
-    mse_list, ssim_list, psnr_list, psd_list = processdata.calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=full_planes,r_analysis=r_analysis)
+    mse_list, ssim_list, psnr_list, psd_list = processdata.calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=full_planes,r_analysis=r_analysis, energy_ratio=False)
         
     if r_analysis:
         var_vals = r_vals
@@ -1786,6 +1830,11 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
     plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
     plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    if log:
+        # Log x-axis
+        plt.xscale('log')
+        #plt.xticks(var_vals, labels=[f"{v:.1e}" for v in var_vals[::-3]])
+    plt.grid()
     plt.grid()
     plt.xlabel(var_str,fontsize='16')
     #plt.ylabel('Normalized metric')

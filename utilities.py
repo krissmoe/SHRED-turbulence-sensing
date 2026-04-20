@@ -399,7 +399,8 @@ def case_name_converter(case):
         case_out = 'P25'
     elif case=='E2':
         case_out = 'P50'
-
+    else:
+        case_out=case
     return case_out
 
 '''-------------------------------------------------------------------------------------------------------------------------'''
@@ -1033,6 +1034,81 @@ def reconstruct_pod_from_sensors(test_sensors, mean_field, modes, W, shape2d):
 
     return recon_fields, pred_coeffs
 '''--------------------------------------------------------------------------------------------------------------------------------------'''
+
+def build_lagged_sensor_matrix(sensor_time_series, lags):
+    """
+    Build lagged sensor feature matrix.
+
+    Parameters
+    ----------
+    sensor_time_series : ndarray, shape (num_sensors, T)
+        Raw sensor signals over time.
+    lags : int
+        Number of time steps in each lagged window.
+
+    Returns
+    -------
+    X_lagged : ndarray, shape (T - lags + 1, num_sensors * lags)
+        Lagged sensor matrix.
+    target_times : ndarray, shape (T - lags + 1,)
+        Absolute time indices corresponding to each row target time.
+    """
+    num_sensors, T = sensor_time_series.shape
+    n_samples = T - lags + 1
+    if n_samples <= 0:
+        raise ValueError("Need T >= lags")
+
+    X_lagged = np.zeros((n_samples, num_sensors * lags))
+
+    for i in range(n_samples):
+        window = sensor_time_series[:, i:i+lags]   # (num_sensors, lags)
+        X_lagged[i, :] = window.reshape(-1)        # flatten to 1D
+
+    target_times = np.arange(lags - 1, T)
+    return X_lagged, target_times
+
+
+
+
+def reconstruct_pod_from_true_coeffs(test_fields, mean_field, modes, shape2d):
+    """
+    Reconstruct test fields using true POD coefficients obtained by projection.
+
+    Parameters
+    ----------
+    test_fields : np.ndarray
+        Shape (nx, ny, nt_test)
+    mean_field : np.ndarray
+        Shape (nspace,)
+    modes : np.ndarray
+        Shape (nspace, r)
+    shape2d : tuple
+        (nx, ny)
+
+    Returns
+    -------
+    recon_fields : np.ndarray
+        Shape (nx, ny, nt_test)
+    true_coeffs : np.ndarray
+        Shape (nt_test, r)
+    """
+    nx, ny, nt_test = test_fields.shape
+    nspace = nx * ny
+
+    # Snapshot matrix: (nt_test, nspace)
+    X_test = test_fields.reshape(nspace, nt_test).T
+
+    # Center using TRAINING mean field
+    X_test_c = X_test - mean_field[None, :]
+
+    # Project onto training POD modes
+    true_coeffs = X_test_c @ modes
+
+    # Reconstruct
+    Xhat = mean_field[None, :] + true_coeffs @ modes.T
+
+    recon_fields = Xhat.T.reshape(nx, ny, nt_test)
+    return recon_fields, true_coeffs
 
 
 
