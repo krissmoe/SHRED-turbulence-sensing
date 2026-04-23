@@ -68,10 +68,7 @@ def calculate_PSD_r_vals_DNS(DNS_case, u_fluc, rank_list, num_ens, plane):
     * The first row of `psd_multi` corresponds to the full‑rank PSD.
     """
 
-    # TODO: SKRIV OM, EVT FJERN GET_DIMS FUNKSJONER
-    # dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
-    print(u_fluc.shape)
-    dimY, dimX, dimT = u_fluc.shape
+    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
     
     #set spatial resolution based on DNS data
     dx = 2*np.pi/dimX
@@ -288,10 +285,7 @@ def calculate_psd_1d(snapshots, dx=1.0, dy=1.0, DNS=False, time_avg=True):
 
 '''SHRED ANALYSIS FUNCTIONS'''
 
-def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes,
-        lags, full_planes=True, random_sampling=True, DNS_case='S2',
-        criterion='MSE', train_indices=None, valid_indices=None,
-        test_indices=None):
+def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, full_planes=True, random_sampling=True, DNS_case='S2', criterion='MSE'):
     """
     Train and evaluate SHRED on multiple DNS ensembles and SVD ranks, then
     save reconstructed test snapshots to `.mat` files.
@@ -340,48 +334,24 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes,
     #extract surface and normalize
     surf = utilities.get_normalized_surface_DNS(DNS_case)
     
-    # Load dimensions
-    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
-    # TODO: Update time to only consider training set. Removed for now, since it is not used here
-    del dimT
-
     #iterate SHRED ensembles p 
     for p in range(ens_start, ens_end+1):
         
         #iterate over ranks, if input is a list
-        for r in r_vals
+        for q in range(len(r_vals)):
+           
+            r = r_vals[q]
             print("rank: ", r, "\n SHRED ensemble: ", p)
             
-            # TODO: New way of setting up arrays. Use A = S*V.T for efficiency. 
-            # U_tot, S_tot, V_tot = utilities.stack_svd_arrays_DNS(vel_planes, r, DNS_case=DNS_case)
-            U_tot, A_train_tot = utilities.load_training_modes_and_dataset(vel_planes, r, DNS_case)
-
-            # Set up validation and test datasets
-            n_valid = len(valid_indices)
-            n_test = len(test_indices)
-            A_valid = np.empty(dimX*dimY, n_valid*len(planes)+1)
-            A_test = np.empty(dimX*dimY, n_test*len(planes)+1)
-
-            U = U_tot(:,:r)
-            A_valid[:, :n_valid] = U.T @ surf[:, valid_indices]
-            A_test[:, :n_test] = U.T @ surf[:, test_indices]
-
-            for ind, plane in enumerate(vel_planes):
-                # Load velocity data for calidation and testing
-                u_valid, u_test = load_velocity_valid_and_test(DNS_case, plane, valid_indices,
-                        test_indices)
-
-                # Project onto SVD modes from training data for this plane
-                U = U_tot(:,(ind+1)*r:(ind+2)*r)
-                A_valid[:, (ind+1)*n_valid:(ind+2)*n_valid] = U.T @ u_valid 
-                A_test[:, (ind+1)*n_test:(ind+2)*n_test] = U.T @ u_test 
-
+            #get SVD arrays and stack horizontally
+            # includes all planes, plus SVD of surface on top
+            U_tot, S_tot, V_tot = utilities.stack_svd_arrays_DNS(vel_planes, r, DNS_case=DNS_case)
             
+            dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
 
             #building array for input to SHRED
             #first insert V matrices fo all chosen velocity planes + surface 
-            # load_X = V_tot
-            load_X = A_train
+            load_X = V_tot
 
             #assign random sensor placements
             sensor_locations_ne = np.random.choice(dimX*dimY, size=num_sensors, replace=False)
@@ -389,8 +359,7 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes,
             sensor_locations = np.arange(0,num_sensors,1, dtype=int)
     
             #stack sensor temporal data on top of the total V transposed array
-            load_X = np.hstack((surf[sensor_locations_ne,:].T,load_X)) 
-            # TODO: Isn't this the opposite of what we have??
+            load_X = np.hstack((surf[sensor_locations_ne,:].T,load_X)) #horizontal stacking of arrays, columnwise, concatenation along 2nd axis
             n = (load_X).shape[0]   #number of snapshots in time series
             m = (load_X).shape[1]   #number of planes (plus surface) * number of SVD modes, plus number of sensors
 
@@ -399,49 +368,48 @@ def SHRED_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes,
             for i in range(num_sensors):
                 mask[sensor_locations_ne[i]]=1
 
-            # TODO: REMOVE AFTER ALL CONSISTENT. TRAINING SPLIT HAPPENS AT EARLIER STAGE
-            # #choose mode for separation of data into training/validation/testing
-            # if random_sampling:
-            #     n = (load_X).shape[0]
 
-            #     train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
+            #choose mode for separation of data into training/validation/testing
+            if random_sampling:
+                n = (load_X).shape[0]
+
+                train_indices = np.random.choice(n - lags, size=int(0.8*n), replace=False) #80% training
     
-            #     mask = np.ones(n - lags) 
-            #     mask[train_indices] = 0
+                mask = np.ones(n - lags) 
+                mask[train_indices] = 0
 
-            #     valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
-            #     valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
-            #     test_indices = valid_test_indices[1::2] #and the other (10%) for testing
-            #     print("test indices: ", test_indices)
-            #     n_test = test_indices.size
+                valid_test_indices = np.arange(0, n - lags)[np.where(mask!=0)[0]] #indices left for validation/testing
+                valid_indices = valid_test_indices[::2] #pick every other index for validation (10%) 
+                test_indices = valid_test_indices[1::2] #and the other (10%) for testing
+                print("test indices: ", test_indices)
+                n_test = test_indices.size
 
-            # else:
-            #     #forecast, by choosing test data as one continuous chunk of the time series 
-            #     #NOTE: note fully compatible with rest of code
-            #     n = (load_X).shape[0]
-            #     
-            #     n_train_valid = int(n*0.90) #n - lags - n_test - n_valid
-            #     
-            #     n_test = n-lags - n_train_valid
-            #     print("n_test: ", n_test)
+            else:
+                #forecast, by choosing test data as one continuous chunk of the time series 
+                #NOTE: note fully compatible with rest of code
+                n = (load_X).shape[0]
+                
+                n_train_valid = int(n*0.90) #n - lags - n_test - n_valid
+                
+                n_test = n-lags - n_train_valid
+                print("n_test: ", n_test)
 
-            #     n_train = int((8/9)*n_train_valid)
-            #     n_valid = n_train_valid - n_train
+                n_train = int((8/9)*n_train_valid)
+                n_valid = n_train_valid - n_train
 
-            #     #randomize training in the dedicated training-validation dataset
-            #     train_indices = np.random.choice(n_train_valid, size=n_train, replace=False)
-            #     #train_indices = np.arange(0, n_train)
-            #     mask = np.ones(n_train_valid) 
-            #     mask[train_indices] = 0
-            #     valid_indices = np.arange(0, n_train_valid)[np.where(mask!=0)[0]]
+                #randomize training in the dedicated training-validation dataset
+                train_indices = np.random.choice(n_train_valid, size=n_train, replace=False)
+                #train_indices = np.arange(0, n_train)
+                mask = np.ones(n_train_valid) 
+                mask[train_indices] = 0
+                valid_indices = np.arange(0, n_train_valid)[np.where(mask!=0)[0]]
 
-            #     test_indices = np.arange(n_train_valid, n-lags)
+                test_indices = np.arange(n_train_valid, n-lags)
             
            
             #scaling the input training data to SHRED
             sc = MinMaxScaler()
-            # sc = sc.fit(load_X[train_indices]) #computes min/max of training data for later scaling
-            sc = sc.fit(load_X) #computes min/max of training data for later scaling
+            sc = sc.fit(load_X[train_indices]) #computes min/max of training data for later scaling
             transformed_X = sc.transform(load_X) #use the previous scaling to fit and transform the training data
 
 
