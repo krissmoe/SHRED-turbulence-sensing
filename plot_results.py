@@ -14,7 +14,8 @@ from paths import DNS_RAW_DIR, EXP_RAW_DIR, DNS_SVD_DIR, EXP_SVD_DIR, SHRED_DIR,
 
 '''Plotter for Fig. 3'''
 
-def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
+def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels,
+        train_indices):
     '''Loads and plots SVD modes and spectra for a specific plane of the DNS data
      
     Parameters
@@ -38,7 +39,10 @@ def plot_svd_and_spectra_DNS(DNS_case,plane, rank_list, mode_list, labels):
 
     #extract raw velocity field
     u_fluc = utilities.get_velocity_plane_DNS(DNS_case, plane)
-    dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+    u_fluc = u_fluc[:,:,train_indices]
+    # TODO: FIX AS SUGGESTED HERE
+    # dimX, dimY, dimT = utilities.get_dims_DNS(DNS_case)
+    dimX, dimY, dimT = u_fluc.shape 
 
     #get SVD matrices from pre-calculated saved file:
     U, S, V = utilities.open_SVD(experimental_ens=None, vel_fluc=False, variable='u', exp=False, experimental_case=None, forecast=False, DNS_new=True, DNS_plane=plane, 
