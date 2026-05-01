@@ -702,7 +702,10 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
     #extract surface and normalize
     surf = utilities.get_normalized_surface_DNS(DNS_case)
     
-    #iterate SHRED ensembles p 
+    #iterate SHRED ensembles p
+
+    MSE_z_tot =np.zeros((ens_end-ens_start + 1,len(vel_planes)))
+    ssim_tot  =np.zeros((ens_end-ens_start + 1,len(vel_planes)))
     for p in range(ens_start, ens_end+1):
         ensemble=ens_start + p
         #iterate over ranks, if input is a list
@@ -873,8 +876,8 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
                 'psd' : psd_error
             }
 
-
-        
+            MSE_z_tot[p-ens_start, k] = MSE_z
+            ssim_tot[p-ens_start, k] = ssim_values
             if full_planes:
                 plane_string ="_full_planes"
             else:  
@@ -895,8 +898,8 @@ def POD_ensemble_DNS(r_vals, num_sensors, ens_start, ens_end, vel_planes, lags, 
                 for key, value in err_dict.items():
                     f.create_dataset(key, data=value)
             print("saved successfully!")
-
-
+            
+    return MSE_z_tot, ssim_tot
 
 
 def POD_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experiment_ens, lags=52, exp_plane='H390', random_sampling=True, criterion='MSE'):
@@ -1104,7 +1107,7 @@ def POD_ensemble_exp(r_vals, num_sensors, X, ens_start, ens_end, case, experimen
         'psnr' : psnr_values,
     }
 
-
+    return MSE_z, ssim_values
 
 
 '''------------------------------------------------------------------------------------------------------------------------------'''
@@ -1500,7 +1503,7 @@ def mutual_information(hgram):
     return np.sum(pxy[nzs] * np.log(pxy[nzs] / px_py[nzs]))
 
 
-def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, full_planes=True):
+def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, lags=52, forecast=False, full_planes=True, compare_to_compressed=False):
     """
     Compute depth-dependent reconstruction metrics for SHRED runs on DNS
     data and save them to `.mat` files.
@@ -1598,7 +1601,11 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
             u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_DNS(DNS_case, plane, plane_index, u_fluc, V_tot_recons, test_indices, rank, 
                                                                                                     num_sensors,U_tot_red, S_tot_red, V_tot_red, open_svd=False, lags=lags, 
                                                                                                     forecast=False, surface=False, no_input_u_fluc=True)
-
+            if compare_to_compressed:
+                u_fluc_test = u_svd_test
+                compressed_str='compressed_'
+            else:
+                compressed_str=''
             #calculate error metrics for this plane and SHRED ensemble case
 
             #RMS 
@@ -1667,9 +1674,9 @@ def calculate_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensem
             fcast="_"
        
         if DNS_case=='RE2500': 
-            err_fname = METRICS_DIR / ("err_metrics" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+            err_fname = METRICS_DIR / ("err_metrics" + fcast +compressed_str+"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
         else:
-            err_fname = METRICS_DIR / ("err_metrics_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+            err_fname = METRICS_DIR / ("err_metrics_RE1000" + fcast + compressed_str +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
   
         with h5py.File(err_fname, 'w') as f:
             for key, value in err_dict.items():
@@ -1753,7 +1760,7 @@ def get_ensemble_avg_error_metrics_POD(DNS_case, rank, vel_planes, num_sensors, 
 
 
 
-def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, experimental_ensembles, lags=52, forecast=False, full_planes=True):
+def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, experimental_ensembles, lags=52, forecast=False, full_planes=True, compare_to_compressed=False):
     """
     Compute vertical profiles of reconstruction-error metrics for SHRED
     runs on Teetank experimental data and save the results to `.mat` files.
@@ -1825,6 +1832,7 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
                 print("Plane: ", plane)
                 X_surf, Y_surf, X_vel, Y_vel = utilities.get_mesh_exp(case, plane)
                 #open SHRED for this plane-surface-pairing, T-tank-ensemble cases and SHRED ensemble
+                print("TEST: ", case)
                 V_tot_recons, V_tot_svd, test_indices = utilities.open_SHRED(experimental_ens, case, rank, num_sensors, ensemble, vel_planes, DNS=False,  exp_plane=plane, full_planes=full_planes, forecast=forecast)
                 num_test_snaps = len(test_indices)
                 
@@ -1837,7 +1845,11 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
                 u_fluc_test, u_svd_test, u_recons_test, u_fluc_full = utilities.get_test_imgs_SHRED_exp(plane, None, None, V_tot_recons, V_tot_svd, test_indices, X_surf, X_vel, experimental_ens, case, rank, 
                                                                                                             ensemble, num_sensors, U_tot_u_red, S_tot_u_red, V_tot_red = V_tot_red, open_svd=False, lags=lags, forecast=forecast, 
                                                                                                             surface=False,no_input_u_fluc=True)
-
+                if compare_to_compressed:
+                    u_fluc_test=u_svd_test
+                    compressed_str='compressed_'
+                else:
+                    compressed_str=''
                 #calculate error metrics for this plane and ensemble case
 
                 #RMS 
@@ -1904,7 +1916,7 @@ def calculate_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensem
             else:
                 fcast="_"
             
-            err_fname = METRICS_DIR / ("err_metrics_TEE" + fcast +case+"_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(experimental_ensembles[k]) + plane_string +  ".mat")
+            err_fname = METRICS_DIR / ("err_metrics_TEE" + fcast +compressed_str+case+"_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(ensemble)+"_Tee_ens" + str(experimental_ensembles[k]) + plane_string +  ".mat")
             
             with h5py.File(err_fname, 'w') as f:
                 for key, value in err_dict.items():
@@ -2180,7 +2192,7 @@ def calculate_temporal_error_metrics_exp(case, rank, u_fluc, vel_plane, num_sens
 
 
 
-def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, forecast=False, full_planes=True, POD=False, energy_ratio=True):
+def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRED_ensembles, forecast=False, full_planes=True, POD=False, energy_ratio=True, compare_to_compressed=False):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
@@ -2211,11 +2223,14 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
             fcast ="_forecast_"
         else:
             fcast ="_"
-
-        if DNS_case=='RE2500': 
-            err_fname = METRICS_DIR / ("err_metrics" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+        if compare_to_compressed:
+            compressed_str='compressed_'
         else:
-            err_fname = METRICS_DIR / ("err_metrics_RE1000" + fcast +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+            compressed_str=''
+        if DNS_case=='RE2500': 
+            err_fname = METRICS_DIR / ("err_metrics" + fcast +compressed_str +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
+        else:
+            err_fname = METRICS_DIR / ("err_metrics_RE1000" + fcast +compressed_str +"r"+str(rank)+"_sens"+str(num_sensors)+ "_ens"+ str(ensemble)+ plane_string +  ".mat")
 
        
         with h5py.File(err_fname, 'r') as err_dict:
@@ -2235,8 +2250,17 @@ def get_ensemble_avg_error_metrics(DNS_case, rank, vel_planes, num_sensors, SHRE
 
     #energy loss error:
     if energy_ratio:
-        energy_error = depth_integrated_energy(RMS_true_ensembles, RMS_recons_ensembles, case=DNS_case)
-        print(f"Depth-integrated energy error case {DNS_case}:                  {energy_error*100:.1f}%")
+        E_01, E_05, E_10, energy_error = depth_integrated_energy(RMS_true_ensembles, RMS_recons_ensembles, case=DNS_case)
+        print(f"{'Case':>6} | {'E_01':>8} | {'E_05':>8} | {'E_10':>8} | {'Err %':>6}")
+        print("-"*50)
+
+        print(
+            f"{DNS_case:>6} | "
+            f"{E_01:>8.3f} | "
+            f"{E_05:>8.3f} | "
+            f"{E_10:>8.3f} | "
+            f"{energy_error:>6.1f}"
+        )
 
     #ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_ensembles, axis=0)
@@ -2261,18 +2285,38 @@ def depth_integrated_energy(u_rms_true, u_rms_recons, case='RE2500'):
 
     if case=='RE1000' or case=='RE2500':
         zz = utilities.get_zz_DNS(case)
+        if case=='RE1000':
+            zz_01 = zz[:19]
+            zz_05 = zz[:35]
+            zz_10 = zz[:47]
+        if case=='RE2500':
+            zz_01 = zz[:21]
+            zz_05 = zz[:41]
+            zz_10 = zz[:63]
     else:
         zz = utilities.get_zz_exp()
         zz = zz[1:]
-    E_true = np.trapz(u_rms_true**2,axis=1, x=zz)
-    E_recons = np.trapz(u_rms_recons**2, axis=1, x=zz)
+        zz_01 = zz[:1]
+        zz_05 = zz[:3]
+        zz_10 = zz
+    def calc_rel_energy_to_depth(u_rms_true, u_rms_recons, zz_vals):
+        zz_top = len(zz_vals)
+        E_true = np.sum(u_rms_true[:,:zz_top]**2, axis=1)#np.trapz(u_rms_true**2,axis=1, x=zz)
+        E_recons = np.sum(u_rms_recons[:,:zz_top]**2, axis=1) #np.trapz(u_rms_recons**2, axis=1, x=zz)
+        relative_error_all_ens = (E_recons - E_true) / E_true
+        relative_error_mean = np.mean(relative_error_all_ens)
+        return (1+relative_error_mean)*100
+    
+    E_01 = calc_rel_energy_to_depth(u_rms_true, u_rms_recons, zz_01)
+    E_05 = calc_rel_energy_to_depth(u_rms_true, u_rms_recons, zz_05)
+    E_10 = calc_rel_energy_to_depth(u_rms_true, u_rms_recons, zz_10)
+    E_tot = calc_rel_energy_to_depth(u_rms_true, u_rms_recons, zz)
+    
+    return E_01, E_05, E_10, E_tot
 
-    relative_error_all_ens = (E_recons - E_true) / E_true
-    relative_error_mean = np.mean(relative_error_all_ens)
-    return relative_error_mean
 
 
-def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast=False, full_planes=True):
+def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast=False, full_planes=True, compare_to_compressed=False, remove_outliers=False):
     '''function that calculates the ensemble averaged error metrics, given specified planes and SHRED ensembles
     returns ensemble averaged values, together with the standard deviation error for those averages'''
     
@@ -2306,8 +2350,12 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
                 fcast ="_forecast_"
             else:
                 fcast ="_"
+            if compare_to_compressed:
 
-            err_fname = METRICS_DIR / ("err_metrics_TEE" + fcast + case + "_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat")
+                compressed_str='compressed_'
+            else:
+                compressed_str=''
+            err_fname = METRICS_DIR / ("err_metrics_TEE" + fcast + compressed_str +  case + "_r"+str(rank)+"_sens"+str(num_sensors)+ "_SHRED_ens"+ str(SHRED_ens)+"_Tee_ens" + str(experimental_ens) + plane_string +  ".mat")
 
             
             with h5py.File(err_fname, 'r') as err_dict:
@@ -2327,30 +2375,58 @@ def get_ensemble_avg_error_metrics_exp(case, rank, vel_planes, num_sensors, SHRE
             psnr_ensembles[i,j] = psnr_values
             psd_ensembles[i,j] = psd_error
     
-    energy_error = depth_integrated_energy(np.mean(RMS_true_ensembles, axis=0), np.mean(RMS_recons_ensembles, axis=0), case=case)
-    print(f"Depth-integrated energy error case {case}:                  {energy_error*100:.1f}%")
+    E_01, E_05, E_10, energy_error = depth_integrated_energy(np.mean(RMS_true_ensembles, axis=0), np.mean(RMS_recons_ensembles, axis=0), case=case)
+    print(f"{'Case':>6} | {'E_01':>8} | {'E_05':>8} | {'E_10':>8} | {'Err %':>6}")
+    print("-"*50)
+
+    print(
+            f"{case:>6} | "
+            f"{E_01:>8.3f} | "
+            f"{E_05:>8.3f} | "
+            f"{E_10:>8.3f} | "
+            f"{energy_error:>6.1f}"
+        )
+    
+    if remove_outliers:
+        # --- remove bad / failed runs by metric thresholds ---
+        mse_bad  = mse_ensembles > 0.4
+        ssim_bad = ssim_ensembles < 0.18
+        psnr_bad = psnr_ensembles < 17   
+        psd_bad  = psd_ensembles > 0.5
+
+        mse_ensembles  = mse_ensembles.astype(float)
+        ssim_ensembles = ssim_ensembles.astype(float)
+        psnr_ensembles = psnr_ensembles.astype(float)
+        psd_ensembles  = psd_ensembles.astype(float)
+
+        mse_ensembles[mse_bad] = np.nan
+        ssim_ensembles[ssim_bad] = np.nan
+        psnr_ensembles[psnr_bad] = np.nan
+        psd_ensembles[psd_bad] = np.nan
+
+
     #SHRED ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_ensembles, axis=1)
     RMS_true_avg = np.mean(RMS_true_ensembles, axis=1)
-    mse_avg = np.mean(mse_ensembles, axis=1)
-    ssim_avg = np.mean(ssim_ensembles, axis=1)
-    psnr_avg = np.mean(psnr_ensembles, axis=1)
-    psd_avg = np.mean(psd_ensembles, axis=1)
+    mse_avg = np.nanmean(mse_ensembles, axis=1)
+    ssim_avg = np.nanmean(ssim_ensembles, axis=1)
+    psnr_avg = np.nanmean(psnr_ensembles, axis=1)
+    psd_avg = np.nanmean(psd_ensembles, axis=1)
 
     #Teetank ensemble averaging
     RMS_recons_avg = np.mean(RMS_recons_avg, axis=0)
     RMS_true_avg = np.mean(RMS_true_avg, axis=0)
-    mse_avg = np.mean(mse_avg, axis=0)
-    ssim_avg = np.mean(ssim_avg, axis=0)
-    psnr_avg = np.mean(psnr_avg, axis=0)
-    psd_avg = np.mean(psd_avg, axis=0)
+    mse_avg = np.nanmean(mse_avg, axis=0)
+    ssim_avg = np.nanmean(ssim_avg, axis=0)
+    psnr_avg = np.nanmean(psnr_avg, axis=0)
+    psd_avg = np.nanmean(psd_avg, axis=0)
 
     #calculate standard deviations
     std_RMS_recons = np.std(RMS_recons_ensembles, axis=1)
-    std_mse = np.std(mse_ensembles, axis=1)
-    std_ssim = np.std(ssim_ensembles, axis=1)
-    std_psnr = np.std(psnr_ensembles, axis=1)
-    std_psd = np.std(psd_ensembles, axis=1)
+    std_mse = np.nanstd(mse_ensembles, axis=1)
+    std_ssim = np.nanstd(ssim_ensembles, axis=1)
+    std_psnr = np.nanstd(psnr_ensembles, axis=1)
+    std_psd = np.nanstd(psd_ensembles, axis=1)
 
     #calculate std in ensemble cases
     std_RMS_recons = np.sqrt(np.sum(np.power(std_RMS_recons,2),axis=0))
@@ -2478,7 +2554,7 @@ def get_RMS_profile_true_exp(case, experimental_ens, experimental_ens_avg=False)
 
 
 
-def calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=False,r_analysis=True, energy_ratio=True):
+def calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, forecast=False, full_planes=False,r_analysis=True, energy_ratio=True, compare_to_compressed=False):
     '''Calculates average error along the vertical, for a range of rank values or a range of sensor values
 
     Parameters
@@ -2532,7 +2608,7 @@ def calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensemble
             num_sensors=sensor_vals[i]
 
         RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= get_ensemble_avg_error_metrics(
-            DNS_case,rank, vel_planes, num_sensors, SHRED_ensembles, forecast=forecast, full_planes=full_planes, energy_ratio=energy_ratio)
+            DNS_case,rank, vel_planes, num_sensors, SHRED_ensembles, forecast=forecast, full_planes=full_planes, energy_ratio=energy_ratio, compare_to_compressed=compare_to_compressed)
         mse_list[i] = np.mean(mse_avg)
         ssim_list[i] = np.mean(ssim_avg)
         psnr_list[i] = np.mean(psnr_avg)
@@ -2542,7 +2618,7 @@ def calc_avg_error_DNS(DNS_case, r_vals, vel_planes, sensor_vals, SHRED_ensemble
 
 
 
-def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, exp_ensembles, forecast=False, r_analysis=True):
+def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, exp_ensembles, forecast=False, r_analysis=True,compare_to_compressed=False):
     '''Calculates average error along the vertical, for a range of rank values or a range of sensor values
         for the experimental case
 
@@ -2606,8 +2682,10 @@ def calc_avg_error_exp(case, r_vals, vel_planes, sensor_vals, SHRED_ensembles, e
 
         #rank = r_vals[i]
         RMS_recons_avg, RMS_true_avg, mse_avg, ssim_avg, psnr_avg, psd_avg, std_RMS_recons, std_mse_z, std_ssim, std_psnr, std_psd= get_ensemble_avg_error_metrics_exp(case, 
-                                rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast, full_planes=True)
-        
+                                rank, vel_planes, num_sensors, SHRED_ensembles, exp_ensembles, forecast, full_planes=True, compare_to_compressed=compare_to_compressed)
+        print(mse_avg.shape)
+        for a, b, c in zip(vel_planes, mse_avg, ssim_avg):
+            print(f"sensors {num_sensors} | r {rank} | plane {a} | NMSE {b} | SSIM {c}")
         mse_list[i] = np.mean(mse_avg)
         ssim_list[i] = np.mean(ssim_avg)
         psnr_list[i] = np.mean(psnr_avg)

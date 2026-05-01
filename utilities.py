@@ -261,6 +261,18 @@ def get_mesh_DNS(DNS_case):
     XX, YY = np.meshgrid(X, Y)
     return XX, YY
 
+def dimensionalize_u_DNS(DNS_case, u_field):
+    '''make u velocities in DNS have dimension mm/s
+    values taken from Babiker et al. (2026)
+        '''
+    if DNS_case=='RE2500' or DNS_case=='S2':
+        scaler = 62.6 #mm/s
+       
+    elif DNS_case=='RE1000' or DNS_case=='S1':
+        scaler = 46.1 #mm/s
+    u_out = scaler*u_field
+    return scaler, u_out
+
 
 def get_mesh_exp(case='P50', depth='H390', addr=''):
     '''get the spatial mesh grid for the experiment'''

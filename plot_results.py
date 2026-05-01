@@ -240,6 +240,37 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
     ax1.semilogy(s_total[:len(s_total)-10]/s_total[0],label="Normalized Singular values") # second row, since we look at velocity here
    
     ax1.semilogy(np.cumsum(s_total[:len(s_total)-10] / sum(s_total)), label="Cumulative Sum", linestyle='--', color='#CD4F38')  # second row, since we look at velocity here
+    n_inset = min(350, len(s_total))
+    ranks = np.arange(1, n_inset + 1)
+
+    axins = inset_axes(
+        ax1,
+        width="38%",
+        height="38%",
+        loc="upper right",
+        borderpad=1.0
+    )
+
+    axins.semilogy(
+        ranks,
+        s_total[:n_inset] / s_total[0],
+        color="black",
+        linewidth=0.8
+    )
+
+    axins.semilogy(
+        ranks,
+        np.cumsum(s_total[:n_inset]) / np.sum(s_total),
+        linestyle="--",
+        color="#CD4F38",
+        linewidth=0.8
+    )
+
+    axins.set_xlim(1, n_inset)
+    axins.grid(True, which="both", linestyle="--", linewidth=0.25, alpha=0.6)
+
+    axins.tick_params(axis="both", labelsize=7, length=2)
+    #axins.set_title("First 350 ranks", fontsize=8)
     ax1.set_xlabel('Rank')
     ax1.legend()
     #ax1.set_ylim(1e-3, 3)
@@ -247,14 +278,14 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
     # ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
     # ax1.set_ylabel("Normalized Singular Values")
     # Plot PSD results
-    
+    ax2.set_ylim(1e-8, 3)
     for i in range(psd_multi.shape[0]):
         #label = labels[i] if labels else f"PSD {i + 1}"
         label = f"r = {labels[i]}" if labels else f"PSD {i + 1}"
-        plt.loglog(k_bins, psd_multi[i,:], label=label)
+        ax2.loglog(k_bins, psd_multi[i,:], label=label)
 
 
-    ax2.set_ylim(1e-8, 3)
+    #ax2.set_ylim(1e-8, 3)
     ax2.set_xlabel("$k L_{\infty}$", fontsize=13)
     ax2.set_ylabel("Normalized Power Spectral Density")
     ax2.legend()
@@ -281,6 +312,7 @@ def plot_svd_and_spectra(u_total, v_total, s_total, mode_list, psd_multi, k_bins
 '''PLOTTING SHRED RESULTS'''
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.ticker import ScalarFormatter
 
 '''Plotter for Fig. 6'''
 
@@ -333,9 +365,6 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
     
     DNS_case = utilities.case_name_converter(DNS_case)
 
-    #set location folder for plots
-    #TODO: change address
-    
     
     if DNS_case=='RE2500':
         tot_num_planes=76
@@ -456,9 +485,18 @@ def plot_SHRED_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors, test_sna
 
                 ax = axs[k,j]
              
-                ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                im = ax.imshow(snapshot,  cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
                 
                 ax.axis('off')
+                # ---- ADD COLORBAR HERE (per row) ----
+            cbar = fig.colorbar(im, ax=axs[k, :],
+                    fraction=0.025, pad=0.02)
+
+            cbar.ax.tick_params(labelsize=12)
+            if k == 0 and add_surface:
+                cbar.set_label(r"$\eta$", fontsize=14)
+            else:
+                cbar.set_label(r"u", fontsize=14)
 
     plt.show()
     filename = PLOTS_DIR / ("compare_recon_"+DNS_case+"_rank"+str(rank)+ "_" + "DNS_ens" + str(SHRED_ens) + "_" + str(test_snap_index) +".pdf")
@@ -568,7 +606,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                 plt.savefig(filename, format='png', bbox_inches='tight', pad_inches=0.5)
         
                 plt.show()
-    
+                plt.close()
 
         print("getting test images")
         u_fluc_test, u_svd_test, u_recons_test, u_fluc2 = utilities.get_test_imgs_SHRED_exp(plane, surf_fluc, u_fluc, test_recons, test_ground_truth, test_indices, X_surf, X_vel, experimental_ens, exp_case, rank, 
@@ -627,6 +665,7 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
         
         for k, row in enumerate(all_rows):
             for j, snapshot in enumerate(row):
+                snapshot = 10*snapshot
                 if j==0:
                     min_val = np.min(snapshot)
                     max_val = np.max(snapshot)
@@ -635,8 +674,18 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
 
                 ax = axs[k,j]
                 #contour1 = ax.contourf(XX,YY, snapshot, levels = colour_levels, cmap = cmaps[k])
-                ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
+                im = ax.imshow(snapshot, cmap=cmaps[k], interpolation='bilinear', vmin=min_val, vmax=max_val)
                 ax.axis('off')
+
+            # ---- ADD COLORBAR HERE (per row) ----
+            cbar = fig.colorbar(im, ax=axs[k, :],
+                    fraction=0.025, pad=0.02)
+
+            cbar.ax.tick_params(labelsize=14)
+            if k == 0 and add_surface:
+                cbar.set_label(r"Surface elevation [mm]", fontsize=16)
+            else:
+                cbar.set_label(r"u velocity [mm/s]", fontsize=16)
                 #ax.axis('square')
                 #my_ticks = np.arange(-0.75,0.75,0.15)
                 #cb = plt.colorbar(ticks=my_ticks)
@@ -650,13 +699,11 @@ def plot_SHRED_comparison_exp(rank, exp_case, experimental_ens, SHRED_ens, plane
                 #ax.axis('off')
         plt.show()
 
-        # Add one colorbar for this row, attached to rightmost axis
-        divider = make_axes_locatable(axs[k, -1])
-        cax = divider.append_axes("right", size="4%", pad=0.08)
 
-        filename = PLOTS_DIR / ("exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)+".eps")
+
+        filename = PLOTS_DIR / ("reconstruction_p50_revision.pdf")#("exp_compare_recon_TOTAL_rank"+str(rank)+ "_" +exp_case +"_"+plane +  "_ExpEns_"+str(experimental_ens)+"_SHREDens" + str(SHRED_ens)+".eps")
         #plt.savefig(filename + ".png", format='png', bbox_inches='tight', pad_inches=0.5)
-        fig.savefig(filename, format='eps', bbox_inches='tight', pad_inches=0.5)
+        fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.5)
       
 
 
@@ -746,6 +793,19 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
     rms_gt_E2= rms_gt_E2[:,snap_indices_exp]
     rms_recons_E2 = rms_recons_E2[:,snap_indices_exp]
     
+
+    #convert S1 & S2 from unitless to mm/s 
+    S1_scaling, rms_gt_S1 = utilities.dimensionalize_u_DNS('RE1000', rms_gt_S1)
+    S2_scaling, rms_gt_S2 = utilities.dimensionalize_u_DNS('RE2500', rms_gt_S2)
+    S1_scaling, rms_recons_S1 = utilities.dimensionalize_u_DNS('RE1000', rms_recons_S1)
+    S2_scaling, rms_recons_S2 = utilities.dimensionalize_u_DNS('RE2500', rms_recons_S2)
+    E1_scaling = 10 #convert from cm/s to mm/s
+    E2_scaling = 10 #convert from cm/s to mm/s
+    rms_gt_E1 = E1_scaling*rms_gt_E1
+    rms_gt_E2 = E2_scaling*rms_gt_E2
+
+    rms_recons_E1 = E1_scaling*rms_recons_E1
+    rms_recons_E2 = E2_scaling*rms_recons_E2
     #plot
     z_S1 = utilities.get_zz_DNS('RE1000')
     z_S2 = utilities.get_zz_DNS('RE2500')
@@ -807,24 +867,32 @@ def plot_instantaneous_RMS(experimental_ens,  SHRED_ens_DNS, SHRED_ens_exp, snap
         ax_S2.plot(rms_gt_S2[:,i], z_S2, linestyle='-', color=colors[1], label=labels[i][0])
 
         ax_E1 = axes[2][i]
-        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='x', linestyle='--', color=colors[2], label=labels[i][1])
-        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', linestyle='-',  color=colors[2], label=labels[i][0])
+        ax_E1.plot(rms_recons_E1[:, i], z_E1[1:],linestyle='-.',linewidth=0.8,alpha=0.6,color=colors[2])
+        ax_E1.plot(rms_gt_E1[:, i], z_E1[1:],linestyle=':',linewidth=0.8,alpha=0.6,color=colors[2])
+        ax_E1.plot(rms_recons_E1[:,i], z_E1[1:], marker='X', markersize=10, markeredgewidth=1.0, linestyle='none', color=colors[2], label=labels[i][1])
+        ax_E1.plot(rms_gt_E1[:,i], z_E1[1:], marker='o', markersize=10, markeredgewidth=1.0, linestyle='none',  color=colors[2], label=labels[i][0])
 
         ax_E2 = axes[3][i]
-        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='x', linestyle='--', color=colors[3], label=labels[i][1])
-        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o', linestyle='-', color=colors[3], label=labels[i][0])
+        ax_E2.plot(rms_recons_E2[:, i], z_E2[1:],linestyle='-.',linewidth=0.8,alpha=0.6,color=colors[3])
+        ax_E2.plot(rms_gt_E2[:, i], z_E2[1:],linestyle=':',linewidth=0.8,alpha=0.6,color=colors[3])
+        ax_E2.plot(rms_recons_E2[:,i], z_E2[1:], marker='X', markersize=10, markeredgewidth=1.0, linestyle='none', color=colors[3], label=labels[i][1])
+        ax_E2.plot(rms_gt_E2[:,i], z_E2[1:], marker='o',markersize=10, markeredgewidth=1.0, linestyle='none', color=colors[3], label=labels[i][0])
         
-        ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=18)
-        ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=18)
-        ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=18)
-        ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=18)
+        #ax_S1.set_xlabel('$u_{RMS}$, Case S1', fontsize=18)
+        #ax_S2.set_xlabel('$u_{RMS}$, Case S2', fontsize=18)
+        #ax_E1.set_xlabel('$u_{RMS}$, Case E1', fontsize=18)
+        #ax_E2.set_xlabel('$u_{RMS}$, Case E2', fontsize=18)
+        ax_S1.set_xlabel(r'$u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(S1)}$', fontsize=18)
+        ax_S2.set_xlabel(r'$u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(S2)}$', fontsize=18)
+        ax_E1.set_xlabel(r'$u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(E1)}$', fontsize=18)
+        ax_E2.set_xlabel(r'$u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(E2)}$', fontsize=18)
 
-        ax_S1.set_xlim((0.06,0.21))
-        ax_S2.set_xlim((0.055,0.19))
-        ax_E1.set_xlim((0.65,2.3))
-        ax_E2.set_xlim((0.3,2.8))
-        ax_E1.set_ylim((-2.15, 0.001))
-        ax_E2.set_ylim((-1.5, 0.001))
+        ax_S1.set_xlim((0.06*S1_scaling,0.21*S1_scaling))
+        ax_S2.set_xlim((0.055*S2_scaling,0.19*S2_scaling))
+        ax_E1.set_xlim((0.65*E1_scaling,2.3*E1_scaling))
+        ax_E2.set_xlim((0.3*E2_scaling,2.8*E2_scaling))
+        ax_E1.set_ylim((-1.5, 0.001))
+        ax_E2.set_ylim((-1.0, 0.001))
         if i>0:
             ax_S1.set_yticklabels([])
             ax_S2.set_yticklabels([])
@@ -927,6 +995,7 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     RMS_exp_z1 = RMS_exp_z1[1:]
     RMS_exp_z2 = RMS_exp_z2[1:]
 
+
     #get vertical axis
     z1 = utilities.get_zz_DNS(DNS_case1)
     z2 = utilities.get_zz_DNS(DNS_case2)
@@ -969,8 +1038,23 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     RMS_recons_avg_exp2, RMS_true_avg_exp2, mse_avg_exp2, ssim_avg_exp2, psnr_avg_exp2, psd_avg_exp2, std_RMS_recons_exp2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
         ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, forecast=False, full_planes=full_planes_exp)
 
-    std_RMS_recons_exp1=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp1 # np.zeros(5)
-    std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2
+    #scale RMS to mm/s
+    S1_scaling, RMS_z1 = utilities.dimensionalize_u_DNS('RE1000', RMS_z1)
+    S2_scaling, RMS_z2 = utilities.dimensionalize_u_DNS('RE2500', RMS_z2)
+    S1_scaling, RMS_recons_avg_1 = utilities.dimensionalize_u_DNS('RE1000', RMS_recons_avg_1)
+    S2_scaling, RMS_recons_avg_2 = utilities.dimensionalize_u_DNS('RE2500', RMS_recons_avg_2)
+    S1_scaling, std_RMS_recons_1 = utilities.dimensionalize_u_DNS('RE1000', std_RMS_recons_1)
+    S2_scaling, std_RMS_recons_2 = utilities.dimensionalize_u_DNS('RE2500', std_RMS_recons_2)
+
+    E1_scaling = 10 #convert from cm/s to mm/s
+    E2_scaling = 10 #convert from cm/s to mm/s
+    RMS_exp_z1 = E1_scaling*RMS_exp_z1
+    RMS_exp_z2 = E2_scaling*RMS_exp_z2
+    RMS_recons_avg_exp1 = E1_scaling*RMS_recons_avg_exp1
+    RMS_recons_avg_exp2 = E2_scaling*RMS_recons_avg_exp2
+
+    std_RMS_recons_exp1=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp1*E1_scaling # np.zeros(5)
+    std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2*E2_scaling
 
     #the plotter for all four cases S1, S2, E1, E2, all together
     plot_error_metrics_four_cases(DNS_case1, DNS_case2, exp_case1, exp_case2, colors,
@@ -981,6 +1065,151 @@ def plot_depth_dependent_error_metrics(DNS_cases, exp_cases, ranks, colors, vel_
     nmse_pod_2=mse_avg_pod2, psd_pod_2=psd_avg_pod2, ssim_pod_2=ssim_avg_pod2, psnr_pod_2=psnr_avg_pod2, depth_s2_pod=z2_pod)
 
 
+'''Plotting with compressed ground truth'''
+
+'''Plotter for Fig 9'''
+def plot_depth_dependent_error_metrics_compressed(DNS_cases, exp_cases, ranks, colors, vel_planes_S1, vel_planes_S2, vel_planes_POD_S2, vel_planes_exp, num_sensors, SHRED_ensembles_S1, SHRED_ensembles_S2, SHRED_ensembles_POD_S2, SHRED_ensembles_E1, SHRED_ensembles_E2, exp_ensembles_E1, exp_ensembles_E2, forecast=False,full_planes=True, full_planes_exp=False, z_norm=None, pod=False, compare_with_compressed=True, remove_outliers=False):
+    """
+    Build the “four-case” figure that compares depth-dependent SHRED
+    reconstruction metrics for
+
+    * DNS case S1 (`DNS_cases[0]`)
+    * DNS case S2 (`DNS_cases[1]`)
+    * Experimental case E1 (`exp_cases[0]`)
+    * Experimental case E2 (`exp_cases[1]`)
+
+
+    Parameters
+    ----------
+    DNS_cases : tuple[str, str]
+        Identifiers for the two DNS datasets, e.g. ``(S1, S2)``.
+    exp_cases : tuple[str, str]
+        Identifiers for the two experimental datasets, e.g. ``(E1, E2)``.
+    ranks : tuple[int, int, int, int]
+        SVD truncation ranks used for S1, S2, E1, E2 (in that order).
+    colors : tuple[str, str, str, str]
+        Line colours for the four cases when plotting.
+    vel_planes1, vel_planes2 : list[int]
+        Velocity-plane indices used in S1 and S2 metric calculations.
+    vel_planes_exp : list[int]
+        Velocity-plane indices common to both experimental cases.
+    num_sensors : int
+        Number of surface sensors in all SHRED runs.
+    SHRED_ensembl_S1, SHRED_ensembles_S2 : list[int]
+        SHRED ensemble seeds for S1 and S2.
+    SHRED_ensembles_E1, SHRED_ensembles_E2 : list[int]
+        SHRED ensemble seeds for E1 and E2.
+    exp_ensembles_E1, exp_ensembles_E2 : list[int]
+        Teetank ensemble indices providing experimental SVDs.
+    forecast : bool, default False
+        If *True*, load forecast-mode SHRED outputs.
+    full_planes : bool, default True
+        If *True*, DNS SHRED models were trained on all planes.
+    full_planes_exp : bool, default False
+        If *True*, experimental SHRED models used all planes; otherwise
+        just ``vel_planes_exp``.
+    z_norm : {"int", "depth", None}, optional
+        Normalisation for the vertical axis: integral length scale,
+        physical depth, or *None* (raw index).
+
+    Returns
+    -------
+    None
+        Generates a Matplotlib figure (via
+        :pyfunc:`plot_error_metrics_four_cases`) but does not return data.
+
+
+    """
+
+    #get necessary profiles of RMS and depth values
+    DNS_case1 = utilities.case_name_converter(DNS_cases[0])
+    DNS_case2 = utilities.case_name_converter(DNS_cases[1])
+    exp_case1 = utilities.case_name_converter(exp_cases[0])
+    exp_case2 = utilities.case_name_converter(exp_cases[1])
+
+    
+    #RMS for DNS cases S1 and S2
+    #requires these have been calculated by 'calc_RMS_profile_true()' and stored as mat files
+    RMS_z1 = processdata.get_RMS_profile_true(DNS_case1, vel_planes_S1) #returns RMS_profile with only chosen planes
+    RMS_z2 = processdata.get_RMS_profile_true(DNS_case2, vel_planes_S2)
+
+    #RMS for experimental cases E1 and E2 
+    RMS_exp_z1 = processdata.get_RMS_profile_true_exp(exp_case1, vel_planes_exp, experimental_ens_avg=True)
+    RMS_exp_z2 = processdata.get_RMS_profile_true_exp(exp_case2, vel_planes_exp,  experimental_ens_avg=True)
+    RMS_exp_z1 = RMS_exp_z1[1:]
+    RMS_exp_z2 = RMS_exp_z2[1:]
+
+
+    #get vertical axis
+    z1 = utilities.get_zz_DNS(DNS_case1)
+    z2 = utilities.get_zz_DNS(DNS_case2)
+    z_exp = utilities.get_zz_exp()
+
+    #normalize vertical axis with a length scale set by 'z_norm' (for Fig. 9 in paper: 'int' for turbulent integral length scale)
+    z1 = utilities.get_normalized_z(z1, z_norm, DNS_case1)
+    z2 = utilities.get_normalized_z(z2, z_norm, DNS_case2)
+    z1=z2
+    z1_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case1)
+    z2_exp = utilities.get_normalized_z_exp(z_exp, z_norm, exp_case2)
+    z1_exp = z1_exp[1:]
+    z2_exp = z2_exp[1:]
+    z1_exp=z2_exp
+
+    #exctract ensemble-averaged error metrics
+    RMS_recons_avg_2_c, RMS_true_avg_2_c, mse_avg_2_c, ssim_avg_2_c, psnr_avg_2_c, psd_avg_2_c, std_RMS_recons_2_c, std_mse_z_c, std_ssim_c, std_psnr_c, std_psd_c= processdata.get_ensemble_avg_error_metrics(DNS_case2,
+        ranks[0], vel_planes_S2, num_sensors, SHRED_ensembles_S1, forecast=forecast, full_planes=full_planes, compare_to_compressed=True)
+    
+    RMS_recons_avg_2, RMS_true_avg_2, mse_avg_2, ssim_avg_2, psnr_avg_2, psd_avg_2, std_RMS_recons_2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics(DNS_case2,
+        ranks[1], vel_planes_S2, num_sensors, SHRED_ensembles_S2, forecast=forecast, full_planes=full_planes, compare_to_compressed=False)
+    
+    if pod:
+        RMS_recons_avg_pod2, RMS_true_avg_pod, mse_avg_pod2, ssim_avg_pod2, psnr_avg_pod2, psd_avg_pod2, std_RMS_recons_pod2, std_mse_z_pod, std_ssim_pod, std_psnr_pod, std_psd_pod, vel_planes_POD= processdata.get_ensemble_avg_error_metrics_POD(DNS_case2,
+            ranks[1], vel_planes_POD_S2, num_sensors, SHRED_ensembles_POD_S2, forecast=forecast, full_planes=False)
+        z2_pod = z2[[x - 1 for x in vel_planes_POD]]
+    else:
+            
+        RMS_recons_avg_pod2=None  
+        mse_avg_pod2=None 
+        ssim_avg_pod2=None
+        psnr_avg_pod2=None
+        psd_avg_pod2=None 
+        std_RMS_recons_pod2=None
+        vel_planes_POD=None
+        z2_pod=z2
+    #extract ensemble-avg error metrics from experiments
+    RMS_recons_avg_exp2_c, RMS_true_avg_exp2_c, mse_avg_exp2_c, ssim_avg_exp2_c, psnr_avg_exp2_c, psd_avg_exp2_c, std_RMS_recons_exp2_c, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
+        ranks[2], vel_planes_exp, num_sensors, SHRED_ensembles_E1, exp_ensembles_E1, forecast=False, full_planes=full_planes_exp, compare_to_compressed=True, remove_outliers=remove_outliers)
+
+    RMS_recons_avg_exp2, RMS_true_avg_exp2, mse_avg_exp2, ssim_avg_exp2, psnr_avg_exp2, psd_avg_exp2, std_RMS_recons_exp2, std_mse_z, std_ssim, std_psnr, std_psd= processdata.get_ensemble_avg_error_metrics_exp(exp_case2, 
+        ranks[3], vel_planes_exp, num_sensors, SHRED_ensembles_E2, exp_ensembles_E2, forecast=False, full_planes=full_planes_exp)
+
+    #scale RMS to mm/s
+    S1_scaling, RMS_true_avg_2_c = utilities.dimensionalize_u_DNS('RE2500',RMS_true_avg_2_c)
+    S2_scaling, RMS_z2 = utilities.dimensionalize_u_DNS('RE2500', RMS_z2)
+    S1_scaling, RMS_recons_avg_2_c= utilities.dimensionalize_u_DNS('RE2500', RMS_recons_avg_2_c)
+    S2_scaling, RMS_recons_avg_2 = utilities.dimensionalize_u_DNS('RE2500', RMS_recons_avg_2)
+    S1_scaling, std_RMS_recons_2_c = utilities.dimensionalize_u_DNS('RE2500', std_RMS_recons_2_c)
+    S2_scaling, std_RMS_recons_2 = utilities.dimensionalize_u_DNS('RE2500', std_RMS_recons_2)
+
+    E1_scaling = 10 #convert from cm/s to mm/s
+    E2_scaling = 10 #convert from cm/s to mm/s
+    RMS_true_avg_exp2_c = E2_scaling*RMS_true_avg_exp2_c
+    RMS_exp_z2 = E2_scaling*RMS_exp_z2
+    RMS_recons_avg_exp2_c = E2_scaling*RMS_recons_avg_exp2_c
+    RMS_recons_avg_exp2 = E2_scaling*RMS_recons_avg_exp2
+
+    std_RMS_recons_exp2_c=(1/np.sqrt(len(exp_ensembles_E1)))*std_RMS_recons_exp2_c*E2_scaling # np.zeros(5)
+    std_RMS_recons_exp2=(1/np.sqrt(len(exp_ensembles_E2)))*std_RMS_recons_exp2*E2_scaling
+
+    #the plotter for all four cases S1, S2, E1, E2, all together
+    plot_error_metrics_four_cases(DNS_case2, DNS_case2, exp_case2, exp_case2, colors,
+    z2, z2, z2_exp, z2_exp,  RMS_true_avg_2_c, RMS_z2, RMS_true_avg_exp2_c, RMS_exp_z2, RMS_recons_avg_2_c, RMS_recons_avg_2, RMS_recons_avg_exp2_c, RMS_recons_avg_exp2, 
+    std_RMS_recons_2_c, std_RMS_recons_2, std_RMS_recons_exp2_c, std_RMS_recons_exp2, mse_avg_2_c, mse_avg_2, mse_avg_exp2_c, mse_avg_exp2, psd_avg_2_c, psd_avg_2, psd_avg_exp2_c, psd_avg_exp2, 
+    ssim_avg_2_c, ssim_avg_2, ssim_avg_exp2_c, ssim_avg_exp2, psnr_avg_2_c, psnr_avg_2, psnr_avg_exp2_c, psnr_avg_exp2, fig=None, gs=None, z_norm=z_norm,
+    rms_u_pod_2=RMS_recons_avg_pod2, std_rms_u_pod_2=std_RMS_recons_pod2,
+    nmse_pod_2=mse_avg_pod2, psd_pod_2=psd_avg_pod2, ssim_pod_2=ssim_avg_pod2, psnr_pod_2=psnr_avg_pod2, depth_s2_pod=z2_pod, compare_to_compressed=compare_with_compressed)
+
+
 '''Helper functions for figure 9'''
 
 def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
@@ -988,8 +1217,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     std_rms_u_1, std_rms_u_2, std_rms_u_3, std_rms_u_4,nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, psd_data_1, psd_data_2, psd_data_3, psd_data_4, 
     ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, fig=None, gs=None, z_norm=None,
     rms_u_pod_2=None, std_rms_u_pod_2=None,
-    nmse_pod_2=None, psd_pod_2=None, ssim_pod_2=None, psnr_pod_2=None, depth_s2_pod=None
-    ):
+    nmse_pod_2=None, psd_pod_2=None, ssim_pod_2=None, psnr_pod_2=None, depth_s2_pod=None, compare_to_compressed=False):
 
     """
     Plots depth-dependent error metrics in an 8-panel layout.
@@ -1022,12 +1250,15 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
         z_label = None
       
     # Helper function for single-curve panels
-    def plot_single_curve(ax, data1, data2, data3, data4, depth1, depth2, depth3, depth4, err, label1, label2, label3, label4, xlabel, colors, xlim=False, z_label=None, z_tics=True, pod_data_2=None, depth_s2_pod=depth_s2_pod, pod_label2=None):
+    def plot_single_curve(ax, data1, data2, data3, data4, depth1, depth2, depth3, depth4, err, label1, label2, label3, label4, xlabel, colors, xlim=False, z_label=None, z_tics=True, pod_data_2=None, depth_s2_pod=depth_s2_pod, pod_label2=None, compare_to_compressed=False):
 
 
         if len(data1)>30:
             marker1=None
-            ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
+            if compare_to_compressed:
+                ax.plot(data1, depth1, linestyle='dashdot', marker=marker1, color=colors[1], label=label1)
+            else:
+                ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
             ax.plot(data2, depth2, linestyle='-', marker=marker1, color=colors[1], label=label2)
             
             if pod_data_2 is not None:
@@ -1038,7 +1269,10 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
                 )
 
             #activate when using P25
-            ax.plot(data3, depth3, marker='o', color=colors[2], label=label3)
+            if compare_to_compressed:
+                ax.plot(data3, depth3, linestyle='dashdot', marker='o', color=colors[3], label=label3)
+            else:
+                ax.plot(data3, depth3, marker='o', color=colors[2], label=label3)
             ax.plot(data4, depth4, marker='o', color=colors[3], label=label4)
 
             #ax.fill_betweenx(depth, lower_bound, upper_bound,color=color_curve,alpha=0.2)
@@ -1046,6 +1280,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
                 ax.set_ylabel(z_label, fontsize=22)
         else:
             marker1='o'
+
             ax.plot(data1, depth1, linestyle='-', marker=marker1, color=colors[0], label=label1)
             ax.plot(data2, depth2, marker=marker1, color=colors[1], label=label2)
             #ax.tick_params(axis='both', which='major', labelsize=14, length=10)
@@ -1068,13 +1303,13 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
         ax.set_xlabel(xlabel, fontsize=15)
         if xlim:
             ax.set_xlim(0.0)
-        ax.legend(fontsize=16)
+        ax.legend(fontsize=14, framealpha=0.4)
         ax.grid()
 
     # Helper function for two-curve panels
     def plot_two_curves(ax, data1_truth, data1_recons, data2_truth, data2_recons, depth1, depth2,
                          err1_recons, err2_recons,labels1, labels2, xlabel, colors, DNS=True, z_label=None, z_tics=True,
-                         data2_pod=None, err2_pod=None, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod):
+                         data2_pod=None, err2_pod=None, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod, compare_to_compressed=False):
 
         
         lower_bound1 = data1_recons - err1_recons
@@ -1085,9 +1320,13 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
         if DNS:
             marker1=None
             marker2=None
-            ax.plot(data1_recons, depth1, linestyle='dashdot', marker=marker2, color=colors[0], label=labels1[1])
-            ax.fill_betweenx(depth1, lower_bound1, upper_bound1,color=colors[0],alpha=0.2)
-            ax.plot(data1_truth, depth1, linestyle='-', marker=marker1, color=colors[0], label=labels1[0])
+            if not compare_to_compressed:
+                ax.plot(data1_recons, depth1, linestyle='dashdot', marker=marker2, color=colors[0], label=labels1[1])
+                ax.fill_betweenx(depth1, lower_bound1, upper_bound1,color=colors[0],alpha=0.2)
+                ax.plot(data1_truth, depth1, linestyle='-', marker=marker1, color=colors[0], label=labels1[0])
+            else:
+                ax.plot(data1_truth, depth1, linestyle='dashed', marker=marker1, color=colors[1], label=labels1[0])
+            #ax.plot(data1_truth, depth1, linestyle='-', marker=marker1, color=colors[0], label=labels1[0])
             ax.plot(data2_recons, depth2, linestyle='dashdot', marker=marker2, color=colors[1], label=labels2[1])
             ax.fill_betweenx(depth2, lower_bound2, upper_bound2,color=colors[1],alpha=0.2)
             ax.plot(data2_truth, depth2, linestyle='-', marker=marker1, color=colors[1], label=labels2[0])
@@ -1106,11 +1345,15 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
 
         
         else:
-
-            ax.plot(data1_truth, depth1, marker='D', color=colors[2], label=labels1[0])
-            ax.plot(data2_truth, depth2, marker='D', color=colors[3], label=labels2[0])
-            ax.errorbar(data1_recons, depth1, xerr = err1_recons, linestyle='dashdot', fmt='o', color=colors[2],label=labels1[1], capsize=2, errorevery=1)
+            if not compare_to_compressed:
+                ax.errorbar(data1_recons, depth1, xerr = err1_recons, linestyle='dashdot', fmt='o', color=colors[2],label=labels1[1], capsize=2, errorevery=1)
+                ax.plot(data1_truth, depth1, marker='D', color=colors[2], label=labels1[0])
+            else:
+                ax.plot(data1_truth, depth1, marker='*', linestyle='dashed', color=colors[3], label=labels1[0])
             ax.errorbar(data2_recons, depth2, xerr=err2_recons, linestyle='dashdot', fmt='o', color=colors[3],label=labels2[1], capsize=2, errorevery=1)
+            ax.plot(data2_truth, depth2, marker='D', color=colors[3], label=labels2[0])
+
+
             #ax.set_xlabel(r'(b) $\langle u_{\mathrm{RMS}}\rangle$, Cases E1 \& E2')
             
             if z_label != None:
@@ -1134,7 +1377,7 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
        
         #ax.invert_yaxis()
         ax.set_xlabel(xlabel, fontsize=18)
-        ax.legend(fontsize=16)
+        ax.legend(fontsize=14, framealpha=0.4)
 
     # Create a figure and use GridSpec for layout
     if fig==None:
@@ -1145,19 +1388,29 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
 
     # Row 1: u_RMS for S1 & S2 (left) and E1 & E2 (right)
     ax1 = fig.add_subplot(gs[0, 0])
-    labels1=['Ground truth, S1', 'Recons, S2']
+    
+    labels1=['Ground truth, S1', 'Recons, S1']
+    label_a = r'(a) $u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(S1 \, \& \, S2)}$'
+    if compare_to_compressed:
+        labels1=['Compressed truth, S2', 'Recons, S2']
+        label_a = r'(a) $u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(S2)}$'
     labels2=['Ground truth, S2', 'Recons, S2']
     plot_two_curves(ax1, rms_u_gt_1, rms_u_recon_1, rms_u_gt_2, rms_u_recon_2, depth1, depth2, err1_recons=std_rms_u_1, err2_recons=std_rms_u_2,
-                     labels1=labels1, labels2=labels2, xlabel='(a) $<u_{RMS}>$, Cases S1 \& S2', colors=colors, DNS=True, z_label=z_label,
-                     data2_pod=rms_u_pod_2, err2_pod=std_rms_u_pod_2, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod)
+                     labels1=labels1, labels2=labels2, xlabel=label_a, colors=colors, DNS=True, z_label=z_label,
+                     data2_pod=rms_u_pod_2, err2_pod=std_rms_u_pod_2, label2_pod='POD, S2', depth_s2_pod=depth_s2_pod, compare_to_compressed=compare_to_compressed)
 
 
     ax2 = fig.add_subplot(gs[0, 1])
     labels3=['Ground truth, E1', 'Recons, E1']
+    if compare_to_compressed:
+         labels3=['Compressed truth, E2', 'Recons, E2']
     labels4=['Ground truth, E2', 'Recons, E2']
     
+    label_b = r'(b) $u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(E1 \, \& \, E2)}$'
+    if compare_to_compressed:
+        label_b = r'(b) $u_{\mathrm{RMS}}\;[\mathrm{mm/s}]\ \mathrm{(E2)}$'
     plot_two_curves(ax2, rms_u_gt_3, rms_u_recon_3, rms_u_gt_4, rms_u_recon_4, depth3, depth4, err1_recons=std_rms_u_3, err2_recons=std_rms_u_4,
-                     labels1=labels3, labels2=labels4, xlabel='(b) $<u_{RMS}>$, Cases E1 \& E2', colors=colors, DNS=False, z_label=None, z_tics=False)
+                     labels1=labels3, labels2=labels4, xlabel=label_b, colors=colors, DNS=False, z_label=None, z_tics=False, compare_to_compressed=compare_to_compressed)
 
 
     # Row 2: NMSE (left) and PSD Error (right)
@@ -1166,21 +1419,26 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     case_S2 = 'S2'
     case_E1= 'E1'
     case_E2= 'E2'
+    if compare_to_compressed:
+        case_S1='Compr., S2'
+        case_S2='Uncompr., S2'
+        case_E1='Compr., E2'
+        case_E2='Uncompr., E2'
     #plot_single_curve(ax5, nmse_data_1, nmse_data_2, depth1, depth2, err=std_nmse, label1=DNS_case1, label2 =DNS_case2, xlabel='Normalized Mean Square Error', colors=colors, z_label=z_label)
     plot_single_curve(ax5, nmse_data_1, nmse_data_2, nmse_data_3, nmse_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(c) Normalized Mean Squared Error', colors=colors, xlim=True, z_label=z_label,
-                      pod_data_2=nmse_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
+                      pod_data_2=nmse_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2', compare_to_compressed=compare_to_compressed)
     ax6 = fig.add_subplot(gs[1, 1])
     plot_single_curve(ax6, psd_data_1, psd_data_2, psd_data_3, psd_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(d) Power Spectral Density Error', colors=colors, xlim=True, z_label=None, z_tics=False,
-                      pod_data_2=psd_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
+                      pod_data_2=psd_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2', compare_to_compressed=compare_to_compressed)
 
     # Row 3: SSIM (left) and PSNR (right)
     ax7 = fig.add_subplot(gs[2, 0])
     plot_single_curve(ax7, ssim_data_1, ssim_data_2, ssim_data_3, ssim_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(e) SSIM', colors=colors, xlim=True, z_label=z_label,
-                      pod_data_2=ssim_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
+                      pod_data_2=ssim_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2', compare_to_compressed=compare_to_compressed)
 
     ax8 = fig.add_subplot(gs[2, 1])
     plot_single_curve(ax8, psnr_data_1, psnr_data_2, psnr_data_3, psnr_data_4, depth1, depth2, depth3, depth4, None, case_S1, case_S2, case_E1, case_E2, xlabel='(f) PSNR', colors=colors, z_label=None, z_tics=False, 
-                      pod_data_2=psnr_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2')
+                      pod_data_2=psnr_pod_2, depth_s2_pod=depth_s2_pod, pod_label2='POD, S2', compare_to_compressed=compare_to_compressed)
 
     # Adjust layout
 
@@ -1189,6 +1447,8 @@ def plot_error_metrics_four_cases(case_S1, case_S2, case_E1, case_E2, colors,
     plt.show()
 
     filename = PLOTS_DIR / ( "DNS_cases_error_metrics.pdf")
+    if compare_to_compressed:
+        filename = PLOTS_DIR / ( "error_metrics_compressed.pdf")
     fig.savefig(filename, format='pdf', bbox_inches='tight', pad_inches=0.1)
     return fig, gs
 
@@ -1394,7 +1654,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     gt_psd_E1 = gt_fft_E1/spectral_max_E1
     recon_psd_E1 = recon_fft_E1/spectral_max_E1
     svd_psd_E1 = svd_fft_E1/spectral_max_E1
-    integral_length_scale=0.051
+    integral_length_scale=0.0771
     k_vals_E1 = integral_length_scale*k_vals_E1
     k_cutoff_E1 = k_vals_E1[7]
     print("cutoff normalized wavenumber k for case E1: ", k_cutoff_E1)
@@ -1420,7 +1680,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     gt_psd_E2 = gt_fft_E2/spectral_max_E2
     recon_psd_E2 = recon_fft_E2/spectral_max_E2
     svd_psd_E2 = svd_fft_E2/spectral_max_E2
-    integral_length_scale=0.068
+    integral_length_scale=0.1154
     k_vals_E2 = integral_length_scale*k_vals_E2
     k_cutoff_E2 = k_vals_E2[7] 
     print("cutoff normalized wavenumber k for case E2: ", k_cutoff_E2)
@@ -1491,11 +1751,11 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     ax1.loglog(k_vals_S1, svd_psd_S1, linestyle='dashdot', color='darkred', label='Compressed')
     ax1.loglog(k_vals_S1, recon_psd_S1, linestyle='--', color='blue', label='SHRED recons')
     ax1.plot([k_cutoff_S1, k_cutoff_S1], [1e-3,3], linestyle='-', color='darkviolet')
-    ax1.set_ylabel('PSD', fontsize=15)
+    ax1.set_ylabel('NPSD', fontsize=15)
     ax1.grid()
     ax1.legend(fontsize=13)
     ax1.set_ylim(1e-3, 3)
-    ax1.set_xlim(k_vals_S1[0], 11)
+    ax1.set_xlim(k_vals_S1[0], 13)
     ax1.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     ax2 = fig.add_subplot(gs[0, 1])
@@ -1507,7 +1767,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     ax2.grid()
     ax2.legend(fontsize=13)
     ax2.set_ylim(1e-3, 3)
-    ax2.set_xlim(k_vals_S2[0], 11)
+    ax2.set_xlim(k_vals_S2[0], 13)
     ax2.set_xlabel("$k L_{\infty}$", fontsize=15)
 
 
@@ -1517,11 +1777,11 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     ax3.loglog(k_vals_E1, svd_psd_E1, linestyle='dashdot', color='darkred', label='Compressed')
     ax3.loglog(k_vals_E1, recon_psd_E1, linestyle='--', color='blue', label='SHRED recons')
     ax3.plot([k_cutoff_E1, k_cutoff_E1], [1e-3,3], linestyle='-', color='darkviolet')
-    ax3.set_ylabel('PSD', fontsize=15)
+    ax3.set_ylabel('NPSD', fontsize=15)
     ax3.grid()
     ax3.legend(fontsize=13)
     ax3.set_ylim(1e-3, 3)
-    ax3.set_xlim(k_vals_E1[0], 11)
+    ax3.set_xlim(k_vals_E1[0], 13)
     ax3.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     ax4= fig.add_subplot(gs[1,1])
@@ -1533,7 +1793,7 @@ def plot_psd_all_cases(vel_planes, SHRED_ensembles, experimental_ensembles, r_va
     ax4.grid()
     ax4.legend(fontsize=13)
     ax4.set_ylim(1e-3, 3)
-    ax4.set_xlim(k_vals_E2[0], 11)
+    ax4.set_xlim(k_vals_E2[0], 13)
     ax4.set_xlabel("$k L_{\infty}$", fontsize=15)
 
     for ax in [ax1, ax2, ax3, ax4]:
@@ -1672,7 +1932,7 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_ra
     axs[0].set_ylim(1e-3, 1.01)
     axs[0].set_xlim(k_bins[0], 11)
     axs[0].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
-    axs[0].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[0].set_ylabel("NPSD", fontsize=15)
     axs[0].legend(fontsize=14, loc='upper right')
     axs[0].grid(True, which="both", linestyle="--", linewidth=0.3)
     axs[0].tick_params(axis='both', which='both', labelsize=13)
@@ -1698,7 +1958,7 @@ def plot_psd_comparison(psd_recon, psd_compr, psd_ground_truth, k_bins, split_ra
     axs[1].set_ylim(1e-3, 1.01)
     axs[1].set_xlim(k_bins[0], 11)
     axs[1].set_xlabel("Dimensionless Wavenumber $kL_{\infty}$", fontsize=15)
-    axs[1].set_ylabel("Normalized Power Spectral Density", fontsize=15)
+    axs[1].set_ylabel("NPSD", fontsize=15)
     axs[1].legend(fontsize=14, loc='upper right')
     axs[1].grid(True, which="both", linestyle="--", linewidth=0.3)
     axs[1].tick_params(axis='both', which='both', labelsize=15)
@@ -1739,7 +1999,7 @@ def make_GIF_comparison_DNS(rank, SHRED_ens, vel_planes, num_sensors,test_index_
 
 
 
-def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False):
+def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False, val_index=3):
     """
     Compare how average reconstruction error metrics changes when either the
     SVD‐rank r or the number of surface sensors is varied for a given DNS
@@ -1813,7 +2073,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
         else:
             total_ranks=10900
         s_energy, r_percentage = utilities.get_cumsum_svd(r_vals, total_ranks, DNS_case, DNS_plane=1)
-        var_str = 'rank'
+        var_str = 'Rank'
         if singular_val_energy:
             var_vals = s_energy*100
             var_str = "% SVD cumulative energy"
@@ -1822,20 +2082,21 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
             var_str = "% Of total SVD ranks"
     else:
         var_vals = sensor_vals
-        var_str = 'sensors'
+        var_str = 'Sensors'
         
     
-    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
-    plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
-    plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
-    plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
-    plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    plt.plot([optimal_var_val,optimal_var_val],[0.5,1.5], "--", color='k')
+    plt.plot(var_vals, psnr_list/psnr_list[val_index-1], label="PSNR")
+    plt.plot(var_vals, mse_list/mse_list[val_index-1], label='NMSE')
+    plt.plot(var_vals, ssim_list/ssim_list[val_index-1], label='SSIM')
+    plt.plot(var_vals, psd_list/psd_list[val_index-1], label='PSDE')
     if log:
         # Log x-axis
         plt.xscale('log')
         #plt.xticks(var_vals, labels=[f"{v:.1e}" for v in var_vals[::-3]])
     plt.grid()
-    plt.grid()
+    plt.ylim((0.5,1.5))
+   
     plt.xlabel(var_str,fontsize='16')
     #plt.ylabel('Normalized metric')
     plt.legend(fontsize=13)
@@ -1846,7 +2107,7 @@ def plot_parameter_analysis_DNS(DNS_case, r_vals, vel_planes, sensor_vals, optim
     plt.show()
 
 
-def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False):
+def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes, sensor_vals, optimal_var_val, SHRED_ensembles, full_planes=False, r_analysis=True, singular_val_energy=False, comp_rate=False, log=False, val_index=3):
     """
     Compare how average reconstruction error metrics changes when either the
     SVD‐rank r or the number of surface sensors is varied for a given experimental
@@ -1918,7 +2179,7 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
         total_ranks=900
 
         s_energy, r_percentage = utilities.get_cumsum_svd_exp(r_vals, total_ranks, case, experimental_ensembles[0], plane=2)
-        var_str = 'rank'
+        var_str = 'Rank'
         if singular_val_energy:
             var_vals = s_energy*100
             var_str = "% SVD cumulative energy"
@@ -1927,19 +2188,24 @@ def plot_parameter_analysis_exp(case, experimental_ensembles, r_vals, vel_planes
             var_str = "% Of total SVD ranks"
     else:
         var_vals = sensor_vals
-        var_str = 'sensors'
+        var_str = 'Sensors'
         
     
-    plt.plot([optimal_var_val,optimal_var_val],[0.0,1.01], "--", color='k')
-    plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
-    plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
-    plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
-    plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    plt.plot([optimal_var_val,optimal_var_val],[0.5,1.5], "--", color='k')
+    #plt.plot(var_vals, psnr_list/np.amax(psnr_list), label="PSNR")
+    #plt.plot(var_vals, mse_list/np.amax(mse_list), label='MSE')
+    #plt.plot(var_vals, ssim_list/np.amax(ssim_list), label='SSIM')
+    #plt.plot(var_vals, psd_list/np.amax(psd_list), label='PSD')
+    plt.plot(var_vals, psnr_list/psnr_list[val_index-1], label="PSNR")
+    plt.plot(var_vals, mse_list/mse_list[val_index-1], label='NMSE')
+    plt.plot(var_vals, ssim_list/ssim_list[val_index-1], label='SSIM')
+    plt.plot(var_vals, psd_list/psd_list[val_index-1], label='PSDE')
     if log:
         # Log x-axis
         plt.xscale('log')
         #plt.xticks(var_vals, labels=[f"{v:.1e}" for v in var_vals[::-3]])
     plt.grid()
+    plt.ylim((0.5,1.5))
     plt.xlabel(var_str,fontsize='16')
     plt.legend(fontsize=13)
     plt.tick_params(axis='x', which='major', labelsize=13)
